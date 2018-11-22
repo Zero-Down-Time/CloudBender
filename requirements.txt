@@ -1,0 +1,8 @@
+boto3
+Jinja2
+oyaml
+click
+pytest
+semver
+pyminifier
+cfn-lint
