@@ -2,7 +2,7 @@ import os
 import click
 import functools
 
-from concurrent.futures import ThreadPoolExecutor, wait
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from . import __version__
 from .core import CloudBender
@@ -70,7 +70,9 @@ def provision(ctx, stack_name, multi):
                         futures.append(group.submit(stack.create))
                     else:
                         futures.append(group.submit(stack.update))
-                wait(futures)
+
+                for future in as_completed(futures):
+                    stack, status = future.result()
 
 
 @click.command()
@@ -92,7 +94,8 @@ def delete(ctx, stack_name, multi):
                     if stack.multi_delete:
                         futures.append(group.submit(stack.delete))
 
-                wait(futures)
+                for future in as_completed(futures):
+                    stack, status = future.result()
 
 
 @click.command()
@@ -115,7 +118,7 @@ def sort_stacks(ctx, stacks):
             # For now we assume deps are artifacts so we prepend them with our local profile and region to match stack.id
             for dep_stack in cb.filter_stacks({'region': s.region, 'profile': s.profile, 'provides': d}):
                 deps.append(dep_stack.id)
-        
+
         data[s.id] = set(deps)
 
     for k, v in data.items():
