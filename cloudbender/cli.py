@@ -72,7 +72,7 @@ def provision(ctx, stack_name, multi):
                         futures.append(group.submit(stack.update))
 
                 for future in as_completed(futures):
-                    stack, status = future.result()
+                    result = future.result()
 
 
 @click.command()
@@ -95,7 +95,7 @@ def delete(ctx, stack_name, multi):
                         futures.append(group.submit(stack.delete))
 
                 for future in as_completed(futures):
-                    stack, status = future.result()
+                    result = future.result()
 
 
 @click.command()
