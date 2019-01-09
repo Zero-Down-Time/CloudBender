@@ -31,7 +31,7 @@ class CloudBender(object):
 
         # Read top level config.yaml and extract CloudBender CTX
         _config = read_yaml_file(os.path.join(self.ctx['config_path'], 'config.yaml'))
-        if _config:
+        if _config and _config.get('CloudBender'):
             self.ctx.update(_config.get('CloudBender'))
 
         # Make sure all paths are abs
