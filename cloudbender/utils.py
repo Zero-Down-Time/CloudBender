@@ -53,14 +53,20 @@ def setup_logging(debug):
         our_level = logging.DEBUG
         # logging.getLogger("botocore").setLevel(logging.INFO)
         boto3.set_stream_logger('')
+
+        formatter = logging.Formatter(
+            fmt="[%(asctime)s] %(name)s %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S"
+        )
     else:
         our_level = logging.INFO
         logging.getLogger("botocore").setLevel(logging.CRITICAL)
 
-    formatter = logging.Formatter(
-        fmt="[%(asctime)s] - %(name)s - %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S"
-    )
+        formatter = logging.Formatter(
+            fmt="[%(asctime)s] %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S"
+        )
+
 
     log_handler = logging.StreamHandler()
     log_handler.setFormatter(formatter)
