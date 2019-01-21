@@ -62,7 +62,7 @@ class Stack(object):
 
     def read_config(self):
         _config = read_yaml_file(self.path)
-        for p in ["stackname", "template", "dependencies", "default_lock", "multi_delete", "provides"]:
+        for p in ["region", "stackname", "template", "dependencies", "default_lock", "multi_delete", "provides"]:
             if p in _config:
                 setattr(self, p, _config[p])
 

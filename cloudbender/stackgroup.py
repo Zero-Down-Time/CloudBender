@@ -56,7 +56,7 @@ class StackGroup(object):
         profile = _config.get('profile', '')
         stackname_prefix = _config.get('stacknameprefix', '')
 
-        logger.info("StackGroup {} added.".format(self.name))
+        logger.debug("StackGroup {} added.".format(self.name))
 
         # Add stacks
         stacks = [s for s in glob.glob(os.path.join(self.path, '*.yaml')) if not s.endswith("config.yaml")]
