@@ -76,7 +76,7 @@ class Stack(object):
         if 'vars' in _config:
             self.template_vars = dict_merge(self.template_vars, _config['vars'])
 
-        logger.info("Stack {} added.".format(self.id))
+        logger.debug("Stack {} added.".format(self.id))
 
 
     def check_fortytwo(self, template):
