@@ -1,4 +1,5 @@
 import os
+import time
 
 import boto3
 import botocore.session
@@ -51,5 +52,16 @@ class BotoConnection():
 
 
     def call(self, service, command, kwargs={}, profile=None, region=None):
-        client = self._get_client(service, profile, region)
-        return getattr(client, command)(**kwargs)
+        while True:
+            try:
+                client = self._get_client(service, profile, region)
+                return getattr(client, command)(**kwargs)
+
+            except botocore.exceptions.ClientError as e:
+                if e.response['Error']['Code'] == 'Throttling':
+                    logger.warning("Throttling exception occured during {} - retry after 3s".format(command))
+                    time.sleep(3)
+                    pass
+                else:
+                    raise e
+

@@ -149,15 +149,17 @@ def pyminify(source, obfuscate=False, minify=True):
         #source = pyminifier.obfuscate.apply_obfuscation(source)
 
     source = pyminifier.token_utils.untokenize(tokens)
-    # logger.debug(source)
+    #logger.info(source)
     minified_source = pyminifier.compression.gz_pack(source)
     logger.info("Compressed python code to {}".format(len(minified_source)))
     return minified_source
 
 
-
 def JinjaEnv(template_locations=[]):
-    jenv = jinja2.Environment(trim_blocks=True, lstrip_blocks=True, undefined=jinja2.Undefined)
+    jenv = jinja2.Environment(trim_blocks=True,
+                              lstrip_blocks=True,
+                              undefined=jinja2.Undefined,
+                              extensions=['jinja2.ext.loopcontrols'])
 
     jinja_loaders = []
     for _dir in template_locations:
