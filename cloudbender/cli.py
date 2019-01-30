@@ -46,10 +46,23 @@ def render(ctx, stack_name, multi):
 @click.option("--multi", is_flag=True, help="Allow more than one stack to match")
 @click.pass_context
 def validate(ctx, stack_name, multi):
+    """ Validates already rendered templates using cfn-lint """
     stacks = _find_stacks(ctx, stack_name, multi)
 
     for s in stacks:
         s.validate()
+
+
+@click.command()
+@click.argument("stack_name")
+@click.argument("change_set_name")
+@click.pass_context
+def create_change_set(ctx, stack_name, change_set_name):
+    """ Creates a change set for an existing stack """
+    stacks = _find_stacks(ctx, stack_name)
+
+    for s in stacks:
+        s.create_change_set(change_set_name)
 
 
 @click.command()
@@ -143,7 +156,7 @@ def sort_stacks(ctx, stacks):
     assert not data, "A cyclic dependency exists amongst %r" % data
 
 
-def _find_stacks(ctx, stack_name,multi):
+def _find_stacks(ctx, stack_name,multi=False):
     cb = ctx.obj['cb']
 
     # ALL acts ass config and multi=True
@@ -169,6 +182,7 @@ cli.add_command(validate)
 cli.add_command(provision)
 cli.add_command(delete)
 cli.add_command(clean)
+cli.add_command(create_change_set)
 
 if __name__ == '__main__':
     cli(obj={})

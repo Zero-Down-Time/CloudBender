@@ -366,6 +366,28 @@ class Stack(object):
         return self._wait_for_completion()
 
 
+    def create_change_set(self, change_set_name):
+        """ Creates a Change Set with the name ``change_set_name``.  """
+
+        # Prepare parameters
+        self.resolve_parameters()
+        self.write_parameter_file()
+
+        if not self.cfn_template:
+            self.read_template_file()
+
+        logger.info('Creating change set {0} for stack {1}'.format(change_set_name, self.stackname))
+        response = self.connection_manager.call('cloudformation', 'create_change_set',
+                       {'StackName':self.stackname,
+                       'ChangeSetName': change_set_name,
+                       'TemplateBody':self.cfn_template,
+                       'Parameters':self.cfn_parameters,
+                       'Tags':[ {"Key": str(k), "Value": str(v)} for k, v in self.tags.items() ],
+                       'Capabilities':['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM']},
+                        profile=self.profile, region=self.region)
+        return self._wait_for_completion()
+
+
     def describe(self):
         """
         Returns the a description of the stack.
