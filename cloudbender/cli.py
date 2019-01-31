@@ -28,13 +28,13 @@ def cli(ctx, debug, directory):
 
 
 @click.command()
-@click.argument("stack_name")
+@click.argument("stack_names", nargs=-1)
 @click.option("--multi", is_flag=True, help="Allow more than one stack to match")
 @click.pass_context
-def render(ctx, stack_name, multi):
+def render(ctx, stack_names, multi):
     """ Renders template and its parameters """
 
-    stacks = _find_stacks(ctx, stack_name, multi)
+    stacks = _find_stacks(ctx, stack_names, multi)
 
     for s in stacks:
         s.render()
@@ -42,12 +42,12 @@ def render(ctx, stack_name, multi):
 
 
 @click.command()
-@click.argument("stack_name")
+@click.argument("stack_names", nargs=-1)
 @click.option("--multi", is_flag=True, help="Allow more than one stack to match")
 @click.pass_context
-def validate(ctx, stack_name, multi):
+def validate(ctx, stack_names, multi):
     """ Validates already rendered templates using cfn-lint """
-    stacks = _find_stacks(ctx, stack_name, multi)
+    stacks = _find_stacks(ctx, stack_names, multi)
 
     for s in stacks:
         s.validate()
@@ -59,19 +59,20 @@ def validate(ctx, stack_name, multi):
 @click.pass_context
 def create_change_set(ctx, stack_name, change_set_name):
     """ Creates a change set for an existing stack """
-    stacks = _find_stacks(ctx, stack_name)
+    stacks = _find_stacks(ctx, [stack_name])
 
     for s in stacks:
         s.create_change_set(change_set_name)
 
 
 @click.command()
-@click.argument("stack_name")
+@click.argument("stack_names", nargs=-1)
 @click.option("--multi", is_flag=True, help="Allow more than one stack to match")
 @click.pass_context
-def provision(ctx, stack_name, multi):
+def provision(ctx, stack_names, multi):
     """ Creates or updates stacks or stack groups """
-    stacks = _find_stacks(ctx, stack_name, multi)
+
+    stacks = _find_stacks(ctx, stack_names, multi)
 
     for step in sort_stacks(ctx, stacks):
         if step:
@@ -89,12 +90,12 @@ def provision(ctx, stack_name, multi):
 
 
 @click.command()
-@click.argument("stack_name")
+@click.argument("stack_names", nargs=-1)
 @click.option("--multi", is_flag=True, help="Allow more than one stack to match")
 @click.pass_context
-def delete(ctx, stack_name, multi):
+def delete(ctx, stack_names, multi):
     """ Deletes stacks or stack groups """
-    stacks = _find_stacks(ctx, stack_name, multi)
+    stacks = _find_stacks(ctx, stack_names, multi)
 
     # Reverse steps
     steps = [s for s in sort_stacks(ctx, stacks)]
@@ -156,22 +157,19 @@ def sort_stacks(ctx, stacks):
     assert not data, "A cyclic dependency exists amongst %r" % data
 
 
-def _find_stacks(ctx, stack_name,multi=False):
+def _find_stacks(ctx, stack_names, multi=False):
     cb = ctx.obj['cb']
 
-    # ALL acts ass config and multi=True
-    if stack_name == "ALL":
-        multi = True
-        stack_name = "config"
-
-    stacks = cb.resolve_stacks(stack_name)
-
-    if not stacks:
-        logger.error('Cannot find stack matching: {}'.format(stack_name))
-        raise click.Abort()
+    stacks = []
+    for s in stack_names:
+        stacks = stacks+cb.resolve_stacks(s)
 
     if not multi and len(stacks) > 1:
-        logger.error('Found more than one ({}) stacks matching name {}: {}. Abort.'.format(len(stacks), stack_name, [s.stackname for s in stacks]))
+        logger.error('Found more than one stack matching name ({}). Please set --multi if that is what you want.'.format(', '.join(stack_names)))
+        raise click.Abort()
+
+    if not stacks:
+        logger.error('Cannot find stack matching: {}'.format(', '.join(stack_names)))
         raise click.Abort()
 
     return stacks
