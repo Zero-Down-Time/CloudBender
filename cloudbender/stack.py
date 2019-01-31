@@ -314,7 +314,7 @@ class Stack(object):
         if not self.cfn_template:
             self.read_template_file()
 
-        logger.info('Creating {0}'.format(self.stackname))
+        logger.info('Creating {0} {1}'.format(self.region, self.stackname))
         response = self.connection_manager.call('cloudformation', 'create_stack',
                        {'StackName':self.stackname,
                         'TemplateBody':self.cfn_template,
@@ -336,7 +336,7 @@ class Stack(object):
         if not self.cfn_template:
             self.read_template_file()
 
-        logger.info('Updating {0}'.format(self.stackname))
+        logger.info('Updating {0} {1}'.format(self.region, self.stackname))
         try:
             response = self.connection_manager.call('cloudformation', 'update_stack',
                            {'StackName':self.stackname,
@@ -359,7 +359,7 @@ class Stack(object):
     def delete(self):
         """Deletes a stack """
 
-        logger.info('Deleting {0}'.format(self.stackname))
+        logger.info('Deleting {0} {1}'.format(self.region, self.stackname))
         response = self.connection_manager.call('cloudformation', 'delete_stack',
                        {'StackName':self.stackname}, profile=self.profile, region=self.region)
 
@@ -493,6 +493,7 @@ class Stack(object):
             ]
             for event in new_events:
                 logger.info(" ".join([
+                    self.region,
                     self.stackname,
                     event["LogicalResourceId"],
                     event["ResourceType"],
