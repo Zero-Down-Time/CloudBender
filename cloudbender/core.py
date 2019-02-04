@@ -79,7 +79,7 @@ class CloudBender(object):
 
 
     def resolve_stacks(self, token):
-        stacks = None
+        stacks = []
 
         # remove optional leading "config/" to allow bash path expansions 
         if token.startswith("config/"):
