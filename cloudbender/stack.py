@@ -48,6 +48,7 @@ class Stack(object):
         self.provides = template
         self.cfn_template = None
         self.cfn_parameters = []
+        self.cfn_data = None
         self.connection_manager = BotoConnection(self.profile, self.region)
         self.ctx = ctx
         self.status = None
@@ -62,7 +63,7 @@ class Stack(object):
 
     def read_config(self):
         _config = read_yaml_file(self.path)
-        for p in ["region", "stackname", "template", "dependencies", "default_lock", "multi_delete", "provides"]:
+        for p in ["region", "stackname", "template", "default_lock", "multi_delete", "provides"]:
             if p in _config:
                 setattr(self, p, _config[p])
 
@@ -75,6 +76,10 @@ class Stack(object):
 
         if 'vars' in _config:
             self.template_vars = dict_merge(self.template_vars, _config['vars'])
+
+        if 'dependencies' in _config:
+            for dep in _config['dependencies']:
+                self.dependencies.add(dep)
 
         logger.debug("Stack {} added.".format(self.id))
 
@@ -153,7 +158,7 @@ class Stack(object):
         rendered = template.render({ 'cfn': self.template_vars, 'Metadata': template_metadata })
 
         try:
-            data = yaml.load(rendered)
+            self.data = yaml.load(rendered)
         except:
             # In case we rendered invalid yaml this helps to debug
             logger.error(rendered)
@@ -162,14 +167,26 @@ class Stack(object):
         # Some sanity checks and final cosmetics
         # Check for empty top level Parameters, Outputs and Conditions and remove
         for key in ['Parameters', 'Outputs', 'Conditions']:
-            if key in data and data[key] is None:
+            if key in self.data and self.data[key] is None:
                 # Delete from data structure which also takes care of json
-                del data[key]
+                del self.data[key]
                 # but also remove from rendered for the yaml file
                 rendered = rendered.replace('\n'+key+":",'')
 
         # Condense multiple empty lines to one
         self.cfn_template = re.sub(r'\n\s*\n', '\n\n', rendered)
+
+        # Update internal data structures
+        self._parse_metadata()
+
+
+    def _parse_metadata(self):
+        # Extract dependencies if present
+        try:
+            for dep in self.data['Metadata']['CloudBender']['Dependencies']:
+                self.dependencies.add(dep)
+        except KeyError:
+            pass
 
 
     def write_template_file(self):
@@ -194,20 +211,26 @@ class Stack(object):
 
 
     def read_template_file(self):
-        yaml_file = os.path.join(self.ctx['template_path'], self.rel_path, self.stackname+".yaml")
-        with open(yaml_file, 'r') as yaml_contents:
-            self.cfn_template = yaml_contents.read()
-            logger.debug('Read cfn template %s.', yaml_file)
+        """ Reads rendered yaml template from disk and extracts metadata """
+        if not self.cfn_template:
+            yaml_file = os.path.join(self.ctx['template_path'], self.rel_path, self.stackname+".yaml")
+            with open(yaml_file, 'r') as yaml_contents:
+                self.cfn_template = yaml_contents.read()
+                logger.debug('Read cfn template %s.', yaml_file)
+
+            self.data = yaml.load(self.cfn_template)
+            self._parse_metadata()
+
+        else:
+            logger.debug('Using cached cfn template %s.', yaml_file)
 
 
     def validate(self):
         """Validates the rendered template via cfn-lint"""
-        if not self.cfn_template:
-            self.read_template_file()
+        self.read_template_file()
 
-        data = yaml.load(self.cfn_template)
         try:
-            ignore_checks = data['Metadata']['cfnlint_ignore']
+            ignore_checks = self.data['Metadata']['cfnlint_ignore']
         except KeyError:
             ignore_checks = []
 
@@ -238,10 +261,7 @@ class Stack(object):
     def resolve_parameters(self):
         """ Renders parameters for the stack based on the source template and the environment configuration """
 
-        if not self.cfn_template:
-            self.read_template_file()
-
-        data = yaml.load(self.cfn_template)
+        self.read_template_file()
 
         # Inspect all outputs of the running Conglomerate members
         # if we run in Piped Mode
@@ -252,9 +272,9 @@ class Stack(object):
         #     except KeyError:
          #        pass
 
-        if 'Parameters' in data:
+        if 'Parameters' in self.data:
             self.cfn_parameters = []
-            for p in data['Parameters']:
+            for p in self.data['Parameters']:
                 # In Piped mode we try to resolve all Paramters first via stack_outputs
                 #if config['cfn']['Mode'] == "Piped":
                 #    try:
@@ -274,7 +294,7 @@ class Stack(object):
                     logger.info('Got {} = {}'.format(p,value))
                 except KeyError as e:
                     # If we have a Default defined in the CFN skip, as AWS will use it
-                    if 'Default' in data['Parameters'][p]:
+                    if 'Default' in self.data['Parameters'][p]:
                         continue
                     else:
                         logger.error('Cannot find value for parameter {0}'.format(p))
@@ -310,9 +330,7 @@ class Stack(object):
         # Prepare parameters
         self.resolve_parameters()
         self.write_parameter_file()
-
-        if not self.cfn_template:
-            self.read_template_file()
+        self.read_template_file()
 
         logger.info('Creating {0} {1}'.format(self.region, self.stackname))
         response = self.connection_manager.call('cloudformation', 'create_stack',
@@ -332,9 +350,7 @@ class Stack(object):
         # Prepare parameters
         self.resolve_parameters()
         self.write_parameter_file()
-
-        if not self.cfn_template:
-            self.read_template_file()
+        self.read_template_file()
 
         logger.info('Updating {0} {1}'.format(self.region, self.stackname))
         try:
@@ -372,9 +388,7 @@ class Stack(object):
         # Prepare parameters
         self.resolve_parameters()
         self.write_parameter_file()
-
-        if not self.cfn_template:
-            self.read_template_file()
+        self.read_template_file()
 
         logger.info('Creating change set {0} for stack {1}'.format(change_set_name, self.stackname))
         response = self.connection_manager.call('cloudformation', 'create_change_set',
