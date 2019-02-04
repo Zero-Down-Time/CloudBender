@@ -222,7 +222,7 @@ class Stack(object):
             self._parse_metadata()
 
         else:
-            logger.debug('Using cached cfn template %s.', yaml_file)
+            logger.debug('Using cached cfn template %s.', self.stackname)
 
 
     def validate(self):
