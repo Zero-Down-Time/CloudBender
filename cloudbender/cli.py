@@ -126,14 +126,19 @@ def sort_stacks(ctx, stacks):
 
     data = {}
     for s in stacks:
-        # Resolve dependencies
+        # To resolve dependencies we have to read each template
+        s.read_template_file()
         deps = []
         for d in s.dependencies:
             # For now we assume deps are artifacts so we prepend them with our local profile and region to match stack.id
             for dep_stack in cb.filter_stacks({'region': s.region, 'profile': s.profile, 'provides': d}):
                 deps.append(dep_stack.id)
+            # also look for global services
+            for dep_stack in cb.filter_stacks({'region': 'global', 'profile': s.profile, 'provides': d}):
+                deps.append(dep_stack.id)
 
         data[s.id] = set(deps)
+        logger.debug("Stack {} depends on {}".format(s.id, deps))
 
     for k, v in data.items():
         v.discard(k) # Ignore self dependencies

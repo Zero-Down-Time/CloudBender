@@ -22,6 +22,9 @@ def get_custom_att(context, att=None, ResourceName="FortyTwo", attributes={}, fl
         attributes for the specified CustomResource to include them later in
         the actual CustomResource include property """
 
+    if ResourceName not in attributes:
+        attributes[ResourceName] = set()
+
     # If flush is set all we do is empty our state dict
     if flush:
         attributes.clear()
@@ -32,21 +35,24 @@ def get_custom_att(context, att=None, ResourceName="FortyTwo", attributes={}, fl
         return attributes
 
     # If dependencies, return all Artifacts this stack depends on, which are the attr of FortyTwo
+    config = context.get_all()['_config']
     if dependencies:
         deps = set()
-        if ResourceName in attributes:
-            for att in attributes[ResourceName]:
+        try:
+            for att in attributes['FortyTwo']:
                 deps.add(att.split('.')[0])
+        except KeyError:
+            pass
+
+        # Incl. FortyTwo itself if any FortyTwo function is used
+        if config['cfn']['Mode'] == "FortyTwo" and attributes:
+            deps.add('FortyTwo')
 
         return list(deps)
     
     # If call with an attribute, return fragement and register
     if att:
-        if ResourceName not in attributes:
-            attributes[ResourceName] = set()
-
         attributes[ResourceName].add(att)
-        config = context.get_all()['_config']
         if config['cfn']['Mode'] == "FortyTwo":
             return('{{ "Fn::GetAtt": ["{0}", "{1}"] }}'.format(ResourceName, att))
         elif config['cfn']['Mode'] == "AWSImport" and ResourceName == "FortyTwo":
