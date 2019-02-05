@@ -125,8 +125,9 @@ class Stack(object):
         template_metadata['Template.Hash'] = hashlib.md5(template.render({ 'cfn': self.template_vars, 'Metadata': template_metadata }).encode('utf-8')).hexdigest()
 
         # Reset and set Metadata for final render pass
-        jenv.globals['get_custom_att'](context={'_config': self.template_vars}, flush=True)
+        jenv.globals['get_custom_att'](context={'_config': self.template_vars}, reset=True)
         jenv.globals['render_once'](context={'_config': self.template_vars}, reset=True)
+        jenv.globals['cloudbender_ctx'](context={'_config': self.template_vars}, reset=True)
 
         # try to get local git info
         try:
