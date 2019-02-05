@@ -16,17 +16,43 @@ import types
 import logging
 logger = logging.getLogger(__name__)
 
+
 @jinja2.contextfunction
-def get_custom_att(context, att=None, ResourceName="FortyTwo", attributes={}, flush=False, dump=False, dependencies=False):
+def cloudbender_ctx(context, cb_ctx={}, reset=False, command=None, args={}):
+
+    # Reset state
+    if reset:
+        cb_ctx.clear()
+        return
+
+    if 'dependencies' not in cb_ctx:
+        cb_ctx['dependencies'] = set()
+
+    if command == 'get_dependencies':
+        _deps = sorted(list(cb_ctx['dependencies']))
+        if _deps:
+            logger.debug("Stack depencies: {}".format(','.join(_deps)))
+        return _deps
+
+    elif command == 'add_dependency':
+        try:
+            cb_ctx['dependencies'].add(args['dep'])
+            logger.debug("Adding stack depency to {}".format(args['dep']))
+        except KeyError:
+            pass
+
+    else:
+        raise("Unknown command")
+
+
+@jinja2.contextfunction
+def get_custom_att(context, att=None, ResourceName="FortyTwo", attributes={}, reset=False, dump=False):
     """ Returns the rendered required fragement and also collects all foreign
         attributes for the specified CustomResource to include them later in
         the actual CustomResource include property """
 
-    if ResourceName not in attributes:
-        attributes[ResourceName] = set()
-
-    # If flush is set all we do is empty our state dict
-    if flush:
+    # Reset state
+    if reset:
         attributes.clear()
         return
 
@@ -34,25 +60,17 @@ def get_custom_att(context, att=None, ResourceName="FortyTwo", attributes={}, fl
     if dump:
         return attributes
 
-    # If dependencies, return all Artifacts this stack depends on, which are the attr of FortyTwo
-    config = context.get_all()['_config']
-    if dependencies:
-        deps = set()
-        try:
-            for att in attributes['FortyTwo']:
-                deps.add(att.split('.')[0])
-        except KeyError:
-            pass
-
-        # Incl. FortyTwo itself if any FortyTwo function is used
-        if config['cfn']['Mode'] == "FortyTwo" and attributes:
-            deps.add('FortyTwo')
-
-        return list(deps)
-    
-    # If call with an attribute, return fragement and register
+    # If called with an attribute, return fragement and register dependency
     if att:
+        config = context.get_all()['_config']
+
+        if ResourceName not in attributes:
+            attributes[ResourceName] = set()
+
         attributes[ResourceName].add(att)
+        if ResourceName == 'FortyTwo':
+            cloudbender_ctx(context, command='add_dependency', args={'dep': att.split('.')[0]})
+
         if config['cfn']['Mode'] == "FortyTwo":
             return('{{ "Fn::GetAtt": ["{0}", "{1}"] }}'.format(ResourceName, att))
         elif config['cfn']['Mode'] == "AWSImport" and ResourceName == "FortyTwo":
@@ -85,7 +103,7 @@ def include_raw_gz(context, files=None, gz=True):
 
 @jinja2.contextfunction
 def render_once(context, name=None, resources=set(), reset=False):
-    """ Utility function to True only once """
+    """ Utility function returning True only once per name """
 
     if reset:
         resources.clear()
@@ -174,6 +192,7 @@ def JinjaEnv(template_locations=[]):
 
     jenv.globals['include_raw'] = include_raw_gz
     jenv.globals['get_custom_att'] = get_custom_att
+    jenv.globals['cloudbender_ctx'] = cloudbender_ctx
     jenv.globals['render_once'] = render_once
     jenv.globals['raise'] = raise_helper
 
