@@ -54,7 +54,7 @@ setup(
     url='https://git.zero-downtime.net/ZeroDownTime/CloudBender',
     packages=find_packages(),
     include_package_data=True,
-    entry_points={'console_scripts': [ "cloudbender = cloudbender:main" ]},
+    entry_points={'console_scripts': [ "cloudbender = cloudbender.cli:cli" ]},
     install_requires=['boto3', 'Jinja2', 'oyaml', 'click', 'cfn-lint', 'pyminifier', 'semver'],
     tests_require=["pytest-cov", "moto", "mock", 'pytest'],
     cmdclass={"test": PyTest},
