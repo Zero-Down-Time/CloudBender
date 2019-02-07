@@ -11,13 +11,14 @@ from .utils import setup_logging
 import logging
 logger = logging.getLogger(__name__)
 
+
 @click.group()
 @click.version_option(version=__version__, prog_name="CloudBender")
 @click.option("--debug", is_flag=True, help="Turn on debug logging.")
 @click.option("--dir", "directory", help="Specify cloudbender project directory.")
 @click.pass_context
 def cli(ctx, debug, directory):
-    logger = setup_logging(debug)
+    setup_logging(debug)
 
     # Read global config
     cb = CloudBender(directory if directory else os.getcwd())
@@ -86,7 +87,7 @@ def provision(ctx, stack_names, multi):
                         futures.append(group.submit(stack.update))
 
                 for future in as_completed(futures):
-                    result = future.result()
+                    future.result()
 
 
 @click.command()
@@ -109,7 +110,7 @@ def delete(ctx, stack_names, multi):
                         futures.append(group.submit(stack.delete))
 
                 for future in as_completed(futures):
-                    result = future.result()
+                    future.result()
 
 
 @click.command()
@@ -140,13 +141,14 @@ def sort_stacks(ctx, stacks):
         data[s.id] = set(deps)
         logger.debug("Stack {} depends on {}".format(s.id, deps))
 
+    # Ignore self dependencies
     for k, v in data.items():
-        v.discard(k) # Ignore self dependencies
+        v.discard(k)
 
     extra_items_in_deps = functools.reduce(set.union, data.values()) - set(data.keys())
-    data.update({item:set() for item in extra_items_in_deps})
+    data.update({item: set() for item in extra_items_in_deps})
     while True:
-        ordered = set(item for item,dep in data.items() if not dep)
+        ordered = set(item for item, dep in data.items() if not dep)
         if not ordered:
             break
 
@@ -154,10 +156,11 @@ def sort_stacks(ctx, stacks):
         result = []
         for o in ordered:
             for s in stacks:
-                if s.id == o: result.append(s)
+                if s.id == o:
+                    result.append(s)
         yield result
 
-        data = {item: (dep - ordered) for item,dep in data.items()
+        data = {item: (dep - ordered) for item, dep in data.items()
                 if item not in ordered}
     assert not data, "A cyclic dependency exists amongst %r" % data
 
@@ -167,7 +170,7 @@ def _find_stacks(ctx, stack_names, multi=False):
 
     stacks = []
     for s in stack_names:
-        stacks = stacks+cb.resolve_stacks(s)
+        stacks = stacks + cb.resolve_stacks(s)
 
     if not multi and len(stacks) > 1:
         logger.error('Found more than one stack matching name ({}). Please set --multi if that is what you want.'.format(', '.join(stack_names)))

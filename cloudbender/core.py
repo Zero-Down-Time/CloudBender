@@ -1,13 +1,11 @@
 import os
-import glob
 import logging
 
 from .utils import read_yaml_file, ensure_dir
-from .stack import Stack
 from .stackgroup import StackGroup
-from .connection import BotoConnection
 
 logger = logging.getLogger(__name__)
+
 
 class CloudBender(object):
     """ Config Class to handle recursive conf/* config tree """
@@ -20,14 +18,13 @@ class CloudBender(object):
             "template_path": os.path.join(self.root, "cloudformation"),
             "parameter_path": os.path.join(self.root, "parameters"),
             "artifact_paths": [os.path.join(self.root, "artifacts")]
-                    }
+        }
         self.default_settings = {
-            'vars': { 'Mode': 'FortyTwo' }
+            'vars': {'Mode': 'FortyTwo'}
         }
 
         if not os.path.isdir(self.root):
             raise "Check '{0}' exists and is a valid project folder.".format(root_path)
-
 
     def read_config(self):
         """Load the <path>/config.yaml, <path>/*.yaml as stacks, sub-folders are child groups """
@@ -39,7 +36,7 @@ class CloudBender(object):
 
         # Make sure all paths are abs
         for k, v in self.ctx.items():
-            if k in ['config_path','template_path','parameter_path','artifact_paths']:
+            if k in ['config_path', 'template_path', 'parameter_path', 'artifact_paths']:
                 if isinstance(v, list):
                     new_list = []
                     for path in v:
@@ -51,9 +48,9 @@ class CloudBender(object):
 
                 elif isinstance(v, str):
                     if not os.path.isabs(v):
-                        self.ctx[k]=os.path.normpath(os.path.join(self.root, v))
+                        self.ctx[k] = os.path.normpath(os.path.join(self.root, v))
 
-            if k in ['template_path','parameter_path']:
+            if k in ['template_path', 'parameter_path']:
                 ensure_dir(self.ctx[k])
 
         self.sg = StackGroup(self.ctx['config_path'], self.ctx)
@@ -66,22 +63,19 @@ class CloudBender(object):
         #     _config = { "vars": { 'Azs': {'TestAZ': 'Next'}, 'Segments': {'Testnet': 'internet'}, "Mode": "Piped" } }
         #     self.vars.update(_config.get('vars'))
 
-
     def dump_config(self):
         logger.debug("<CloudBender: {}>".format(vars(self)))
         self.sg.dump_config()
-
 
     def clean(self):
         for s in self.all_stacks:
             s.delete_template_file()
             s.delete_parameter_file()
 
-
     def resolve_stacks(self, token):
         stacks = []
 
-        # remove optional leading "config/" to allow bash path expansions 
+        # remove optional leading "config/" to allow bash path expansions
         if token.startswith("config/"):
             token = token[7:]
 
@@ -100,7 +94,6 @@ class CloudBender(object):
 
         return stacks
 
-
     def filter_stacks(self, filter_by, stacks=None):
         # filter_by is a dict { property, value }
 
@@ -112,12 +105,12 @@ class CloudBender(object):
         for s in stacks:
             match = True
 
-            for p,v in filter_by.items():
+            for p, v in filter_by.items():
                 if not (hasattr(s, p) and getattr(s, p) == v):
                     match = False
                     break
 
             if match:
                 matching_stacks.append(s)
-            
+
         return matching_stacks

@@ -5,6 +5,7 @@ import hashlib
 import oyaml as yaml
 import json
 import time
+import subprocess
 
 from datetime import datetime, timedelta
 from dateutil.tz import tzutc
@@ -56,10 +57,8 @@ class Stack(object):
         self.default_lock = None
         self.multi_delete = True
 
-
     def dump_config(self):
         logger.debug("<Stack {}: {}>".format(self.id, vars(self)))
-
 
     def read_config(self):
         _config = read_yaml_file(self.path)
@@ -83,27 +82,26 @@ class Stack(object):
 
         logger.debug("Stack {} added.".format(self.id))
 
-
     def check_fortytwo(self, template):
         # Fail early if 42 is enabled but not available
         if self.cfn['Mode'] == "FortyTwo" and self.template != 'FortyTwo':
             try:
-                response = self.connection_manager.call('lambda', 'get_function', {'FunctionName': 'FortyTwo'},
-                                                profile=self.profile, region=self.region)
+                response = self.connection_manager.call(
+                    'lambda', 'get_function', {'FunctionName': 'FortyTwo'},
+                    profile=self.profile, region=self.region)
 
                 # Also verify version in case specified in the template's metadata
                 try:
                     req_ver = template['Metadata']['FortyTwo']['RequiredVersion']
                     if 'Release' not in response['Tags']:
-                        abort("Lambda FortyTwo has no Release Tag! Required: {}".format(req_ver))
-                    elif semver.compare(req_ver, re.sub("-.*$",'', response['Tags']['Release'])) > 0:
-                        abort("Lambda FortyTwo version is not recent enough! Required: {} vs. Found: {}".format(req_ver, response['Tags']['Release']))
+                        raise("Lambda FortyTwo has no Release Tag! Required: {}".format(req_ver))
+                    elif semver.compare(req_ver, re.sub("-.*$", '', response['Tags']['Release'])) > 0:
+                        raise("Lambda FortyTwo version is not recent enough! Required: {} vs. Found: {}".format(req_ver, response['Tags']['Release']))
                 except KeyError:
                     pass
 
             except botocore.exceptions.ClientError:
-                abort("No Lambda FortyTwo found in your account")
-
+                raise("No Lambda FortyTwo found in your account")
 
     def render(self):
         """Renders the cfn jinja template for this stack"""
@@ -114,56 +112,38 @@ class Stack(object):
 
         template_metadata = {
             'Template.Name': self.template,
-            'Template.Hash': 'unknown',
-            'Template.GitComment': 'unknown',
+            'Template.Hash': 'tbd',
             'CloudBender.Version': __version__
         }
 
-        jenv.globals['_config'] = { 'cfn': self.template_vars, 'Metadata': template_metadata }
+        jenv.globals['_config'] = {'cfn': self.template_vars, 'Metadata': template_metadata}
 
         # First render pass to calculate a md5 checksum
-        template_metadata['Template.Hash'] = hashlib.md5(template.render({ 'cfn': self.template_vars, 'Metadata': template_metadata }).encode('utf-8')).hexdigest()
+        template_metadata['Template.Hash'] = hashlib.md5(template.render({'cfn': self.template_vars, 'Metadata': template_metadata}).encode('utf-8')).hexdigest()
 
         # Reset and set Metadata for final render pass
         jenv.globals['get_custom_att'](context={'_config': self.template_vars}, reset=True)
         jenv.globals['render_once'](context={'_config': self.template_vars}, reset=True)
         jenv.globals['cloudbender_ctx'](context={'_config': self.template_vars}, reset=True)
 
-        # try to get local git info
+        # Try to add latest tag/commit for the template source, skip if not in git tree
         try:
-            self.template_vars['Metadata']['{}.Version'.format(PROJECT_NAME)] = subprocess.check_output('git describe --tags'.split(' '), universal_newlines=True)[:-1]
-
-        except:
-            pass
-
-        # Add latest tag/commit
-        try:
-            os.chdir(ROOT_DIR)
-            _version = subprocess.check_output('git describe --tags'.split(' '), universal_newlines=True)[:-1]
-            if _version:
-                self.template_vars['Metadata']['CloudBender.Version'] = _version
-
-            os.chdir(os.path.dirname(template.filename))
-            _comment = subprocess.check_output('git log -1 --pretty=%B {0}{1}'
-                        .format(input_file, TEMPLATE_EXT).split(' ')).decode('utf-8').strip() \
-                        .replace('"', '').replace('#', '').replace('\n', '').replace(':', ' ')
+            _comment = subprocess.check_output('git log -1 --pretty=%B {}'.format(template.filename).split(' ')).decode('utf-8').strip().replace('"', '').replace('#', '').replace('\n', '').replace(':', ' ')
             if _comment:
-                self.template_vars['Metadata']['Template.GitComment'] = _comment
+                template_metadata['Template.LastGitComment'] = _comment
 
-            os.chdir(PROJECT_DIR)
-
-        except:
+        except subprocess.CalledProcessError:
             pass
 
         logger.info('Rendering %s', template.filename)
-        rendered = template.render({ 'cfn': self.template_vars, 'Metadata': template_metadata })
+        rendered = template.render({'cfn': self.template_vars, 'Metadata': template_metadata})
 
         try:
             self.data = yaml.load(rendered)
-        except:
+        except Exception as e:
             # In case we rendered invalid yaml this helps to debug
             logger.error(rendered)
-            raise
+            raise e
 
         # Some sanity checks and final cosmetics
         # Check for empty top level Parameters, Outputs and Conditions and remove
@@ -172,14 +152,13 @@ class Stack(object):
                 # Delete from data structure which also takes care of json
                 del self.data[key]
                 # but also remove from rendered for the yaml file
-                rendered = rendered.replace('\n'+key+":",'')
+                rendered = rendered.replace('\n' + key + ":", '')
 
         # Condense multiple empty lines to one
         self.cfn_template = re.sub(r'\n\s*\n', '\n\n', rendered)
 
         # Update internal data structures
         self._parse_metadata()
-
 
     def _parse_metadata(self):
         # Extract dependencies if present
@@ -189,10 +168,9 @@ class Stack(object):
         except KeyError:
             pass
 
-
     def write_template_file(self):
         if self.cfn_template:
-            yaml_file = os.path.join(self.ctx['template_path'], self.rel_path, self.stackname+".yaml")
+            yaml_file = os.path.join(self.ctx['template_path'], self.rel_path, self.stackname + ".yaml")
             self._ensure_dirs('template_path')
             with open(yaml_file, 'w') as yaml_contents:
                 yaml_contents.write(self.cfn_template)
@@ -201,20 +179,18 @@ class Stack(object):
         else:
             logger.error('No cfn template rendered yet for stack {}.'.format(self.stackname))
 
-
     def delete_template_file(self):
-        yaml_file = os.path.join(self.ctx['template_path'], self.rel_path, self.stackname+".yaml")
+        yaml_file = os.path.join(self.ctx['template_path'], self.rel_path, self.stackname + ".yaml")
         try:
             os.remove(yaml_file)
             logger.debug('Deleted cfn template %s.', yaml_file)
         except OSError:
             pass
 
-
     def read_template_file(self):
         """ Reads rendered yaml template from disk and extracts metadata """
         if not self.cfn_template:
-            yaml_file = os.path.join(self.ctx['template_path'], self.rel_path, self.stackname+".yaml")
+            yaml_file = os.path.join(self.ctx['template_path'], self.rel_path, self.stackname + ".yaml")
             with open(yaml_file, 'r') as yaml_contents:
                 self.cfn_template = yaml_contents.read()
                 logger.debug('Read cfn template %s.', yaml_file)
@@ -224,7 +200,6 @@ class Stack(object):
 
         else:
             logger.debug('Using cached cfn template %s.', self.stackname)
-
 
     def validate(self):
         """Validates the rendered template via cfn-lint"""
@@ -237,15 +212,15 @@ class Stack(object):
 
         # Ignore some more checks around injected parameters as we generate these
         if self.template_vars['Mode'] == "Piped":
-            ignore_checks = ignore_checks+['W2505','W2509','W2507']
+            ignore_checks = ignore_checks + ['W2505', 'W2509', 'W2507']
 
-        filename = os.path.join(self.ctx['template_path'], self.rel_path, self.stackname+".yaml")
+        filename = os.path.join(self.ctx['template_path'], self.rel_path, self.stackname + ".yaml")
         logger.info('Validating {0}'.format(filename))
 
         lint_args = ['--template', filename]
         if ignore_checks:
             lint_args.append('--ignore-checks')
-            lint_args = lint_args+ignore_checks
+            lint_args = lint_args + ignore_checks
             logger.info('Ignoring checks: {}'.format(','.join(ignore_checks)))
 
         (args, filenames, formatter) = cfnlint.core.get_args_filenames(lint_args)
@@ -257,7 +232,6 @@ class Stack(object):
                 logger.error(formatter._format(match))
         else:
             logger.info("Passed.")
-
 
     def resolve_parameters(self):
         """ Renders parameters for the stack based on the source template and the environment configuration """
@@ -271,13 +245,13 @@ class Stack(object):
         #         stack_outputs = inspect_stacks(config['tags']['Conglomerate'])
         #         logger.info(pprint.pformat(stack_outputs))
         #     except KeyError:
-         #        pass
+        #        pass
 
         if 'Parameters' in self.data:
             self.cfn_parameters = []
             for p in self.data['Parameters']:
                 # In Piped mode we try to resolve all Paramters first via stack_outputs
-                #if config['cfn']['Mode'] == "Piped":
+                # if config['cfn']['Mode'] == "Piped":
                 #    try:
                 #        # first reverse the rename due to AWS alphanumeric restriction for parameter names
                 #        _p = p.replace('DoT','.')
@@ -291,18 +265,17 @@ class Stack(object):
                 # Key name in config tree is: stacks.<self.stackname>.parameters.<parameter>
                 try:
                     value = str(self.parameters[p])
-                    self.cfn_parameters.append({'ParameterKey': p, 'ParameterValue': value })
-                    logger.info('Got {} = {}'.format(p,value))
-                except KeyError as e:
+                    self.cfn_parameters.append({'ParameterKey': p, 'ParameterValue': value})
+                    logger.info('Got {} = {}'.format(p, value))
+                except KeyError:
                     # If we have a Default defined in the CFN skip, as AWS will use it
                     if 'Default' in self.data['Parameters'][p]:
                         continue
                     else:
                         logger.error('Cannot find value for parameter {0}'.format(p))
 
-
     def write_parameter_file(self):
-        parameter_file = os.path.join(self.ctx['parameter_path'], self.rel_path, self.stackname+".yaml")
+        parameter_file = os.path.join(self.ctx['parameter_path'], self.rel_path, self.stackname + ".yaml")
 
         # Render parameters as json for AWS CFN
         self._ensure_dirs('parameter_path')
@@ -315,15 +288,13 @@ class Stack(object):
             if os.path.isfile(parameter_file):
                 os.remove(parameter_file)
 
-
     def delete_parameter_file(self):
-        parameter_file = os.path.join(self.ctx['parameter_path'], self.rel_path, self.stackname+".yaml")
+        parameter_file = os.path.join(self.ctx['parameter_path'], self.rel_path, self.stackname + ".yaml")
         try:
             os.remove(parameter_file)
             logger.debug('Deleted parameter %s.', parameter_file)
         except OSError:
             pass
-
 
     def create(self):
         """Creates a stack """
@@ -334,16 +305,16 @@ class Stack(object):
         self.read_template_file()
 
         logger.info('Creating {0} {1}'.format(self.region, self.stackname))
-        response = self.connection_manager.call('cloudformation', 'create_stack',
-                       {'StackName':self.stackname,
-                        'TemplateBody':self.cfn_template,
-                       'Parameters':self.cfn_parameters,
-                       'Tags':[ {"Key": str(k), "Value": str(v)} for k, v in self.tags.items() ],
-                       'Capabilities':['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM']},
-                        profile=self.profile, region=self.region)
+        self.connection_manager.call(
+            'cloudformation', 'create_stack',
+            {'StackName': self.stackname,
+                'TemplateBody': self.cfn_template,
+                'Parameters': self.cfn_parameters,
+                'Tags': [{"Key": str(k), "Value": str(v)} for k, v in self.tags.items()],
+                'Capabilities': ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM']},
+            profile=self.profile, region=self.region)
 
         return self._wait_for_completion()
-
 
     def update(self):
         """Updates an existing stack """
@@ -355,13 +326,14 @@ class Stack(object):
 
         logger.info('Updating {0} {1}'.format(self.region, self.stackname))
         try:
-            response = self.connection_manager.call('cloudformation', 'update_stack',
-                           {'StackName':self.stackname,
-                           'TemplateBody':self.cfn_template,
-                           'Parameters':self.cfn_parameters,
-                           'Tags':[ {"Key": str(k), "Value": str(v)} for k, v in self.tags.items() ],
-                           'Capabilities':['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM']},
-                            profile=self.profile, region=self.region)
+            self.connection_manager.call(
+                'cloudformation', 'update_stack',
+                {'StackName': self.stackname,
+                    'TemplateBody': self.cfn_template,
+                    'Parameters': self.cfn_parameters,
+                    'Tags': [{"Key": str(k), "Value": str(v)} for k, v in self.tags.items()],
+                    'Capabilities': ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM']},
+                profile=self.profile, region=self.region)
 
         except ClientError as e:
             if 'No updates are to be performed' in e.response['Error']['Message']:
@@ -372,16 +344,15 @@ class Stack(object):
 
         return self._wait_for_completion()
 
-
     def delete(self):
         """Deletes a stack """
 
         logger.info('Deleting {0} {1}'.format(self.region, self.stackname))
-        response = self.connection_manager.call('cloudformation', 'delete_stack',
-                       {'StackName':self.stackname}, profile=self.profile, region=self.region)
+        self.connection_manager.call(
+            'cloudformation', 'delete_stack', {'StackName': self.stackname},
+            profile=self.profile, region=self.region)
 
         return self._wait_for_completion()
-
 
     def create_change_set(self, change_set_name):
         """ Creates a Change Set with the name ``change_set_name``.  """
@@ -392,16 +363,16 @@ class Stack(object):
         self.read_template_file()
 
         logger.info('Creating change set {0} for stack {1}'.format(change_set_name, self.stackname))
-        response = self.connection_manager.call('cloudformation', 'create_change_set',
-                       {'StackName':self.stackname,
-                       'ChangeSetName': change_set_name,
-                       'TemplateBody':self.cfn_template,
-                       'Parameters':self.cfn_parameters,
-                       'Tags':[ {"Key": str(k), "Value": str(v)} for k, v in self.tags.items() ],
-                       'Capabilities':['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM']},
-                        profile=self.profile, region=self.region)
+        self.connection_manager.call(
+            'cloudformation', 'create_change_set',
+            {'StackName': self.stackname,
+                'ChangeSetName': change_set_name,
+                'TemplateBody': self.cfn_template,
+                'Parameters': self.cfn_parameters,
+                'Tags': [{"Key": str(k), "Value": str(v)} for k, v in self.tags.items()],
+                'Capabilities': ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM']},
+            profile=self.profile, region=self.region)
         return self._wait_for_completion()
-
 
     def describe(self):
         """
@@ -413,7 +384,6 @@ class Stack(object):
             "describe_stacks",
             {"StackName": self.stackname},
             profile=self.profile, region=self.region)
-
 
     def get_status(self):
         """
@@ -428,7 +398,6 @@ class Stack(object):
             else:
                 raise e
         return status
-
 
     def describe_events(self):
         """
@@ -448,7 +417,6 @@ class Stack(object):
                 raise e
 
         return status
-
 
     def _wait_for_completion(self, timeout=0):
         """
@@ -477,7 +445,6 @@ class Stack(object):
 
         return status
 
-
     @staticmethod
     def _get_simplified_status(status):
         """ Returns the simplified Stack Status.  """
@@ -492,7 +459,6 @@ class Stack(object):
                 return StackStatus.FAILED
             else:
                 return 'Unknown'
-
 
     def _log_new_events(self):
         """
@@ -516,7 +482,6 @@ class Stack(object):
                     event.get("ResourceStatusReason", "")
                 ]))
                 self.most_recent_event_datetime = event["Timestamp"]
-
 
     def _ensure_dirs(self, path):
         # Ensure output dirs exist

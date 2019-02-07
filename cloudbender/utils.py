@@ -6,6 +6,7 @@ import boto3
 
 logger = logging.getLogger(__name__)
 
+
 def read_yaml_file(path):
     data = {}
     if os.path.exists(path):
@@ -16,7 +17,7 @@ def read_yaml_file(path):
                 if _data:
                     data.update(_data)
             except Exception as e:
-                logger.warning("Error reading config file: {} ({})".format(path,e))
+                logger.warning("Error reading config file: {} ({})".format(path, e))
 
     return data
 
@@ -29,13 +30,13 @@ def dict_merge(a, b):
     if not b:
         return a
 
-    if  not isinstance(a, dict) or not isinstance(b, dict):
+    if not isinstance(a, dict) or not isinstance(b, dict):
         raise TypeError
 
     result = copy.deepcopy(a)
     for k, v in b.items():
         if k in result and isinstance(result[k], dict):
-                result[k] = dict_merge(result[k], v)
+            result[k] = dict_merge(result[k], v)
         else:
             result[k] = copy.deepcopy(v)
     return result
@@ -66,7 +67,6 @@ def setup_logging(debug):
             fmt="[%(asctime)s] %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S"
         )
-
 
     log_handler = logging.StreamHandler()
     log_handler.setFormatter(formatter)
