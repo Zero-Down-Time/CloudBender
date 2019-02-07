@@ -1,8 +1,6 @@
-import os
 import io
 import gzip
 import jinja2
-import oyaml as yaml
 import re
 import base64
 
@@ -75,10 +73,10 @@ def get_custom_att(context, att=None, ResourceName="FortyTwo", attributes={}, re
             return('{{ "Fn::GetAtt": ["{0}", "{1}"] }}'.format(ResourceName, att))
         elif config['cfn']['Mode'] == "AWSImport" and ResourceName == "FortyTwo":
             # AWS only allows - and :, so replace '.' with ":"
-            return('{{ "Fn::ImportValue": {{ "Fn::Sub": "${{Conglomerate}}:{0}" }} }}'.format(att.replace('.',':')))
+            return('{{ "Fn::ImportValue": {{ "Fn::Sub": "${{Conglomerate}}:{0}" }} }}'.format(att.replace('.', ':')))
         else:
             # We need to replace . with some PureAlphaNumeric thx AWS ...
-            return('{{ Ref: {0} }}'.format(att.replace('.','DoT')))
+            return('{{ Ref: {0} }}'.format(att.replace('.', 'DoT')))
 
 
 @jinja2.contextfunction
@@ -133,7 +131,7 @@ def regex(value='', pattern='', ignorecase=False, match_type='search'):
         flags = 0
     _re = re.compile(pattern, flags=flags)
     if getattr(_re, match_type, 'search')(value) is not None:
-      return True
+        return True
     return False
 
 
@@ -153,13 +151,15 @@ def regex_replace(value='', pattern='', replace='', ignorecase=False):
         flags = re.I
     else:
         flags = 0
-    return re.sub(pattern,replace,value,flags=flags)
+    return re.sub(pattern, replace, value, flags=flags)
 
 
 def pyminify(source, obfuscate=False, minify=True):
     # pyminifier options
-    options = types.SimpleNamespace(tabs=False,replacement_length=1,use_nonlatin=0,
-                obfuscate=0,obf_variables=1,obf_classes=0,obf_functions=0,obf_import_methods=0,obf_builtins=0)
+    options = types.SimpleNamespace(
+        tabs=False, replacement_length=1, use_nonlatin=0,
+        obfuscate=0, obf_variables=1, obf_classes=0, obf_functions=0,
+        obf_import_methods=0, obf_builtins=0)
 
     tokens = pyminifier.token_utils.listified_tokenizer(source)
 
@@ -170,10 +170,10 @@ def pyminify(source, obfuscate=False, minify=True):
     if obfuscate:
         name_generator = pyminifier.obfuscate.obfuscation_machine(use_unicode=False)
         pyminifier.obfuscate.obfuscate("__main__", tokens, options, name_generator=name_generator)
-        #source = pyminifier.obfuscate.apply_obfuscation(source)
+        # source = pyminifier.obfuscate.apply_obfuscation(source)
 
     source = pyminifier.token_utils.untokenize(tokens)
-    #logger.info(source)
+    # logger.info(source)
     minified_source = pyminifier.compression.gz_pack(source)
     logger.info("Compressed python code to {}".format(len(minified_source)))
     return minified_source

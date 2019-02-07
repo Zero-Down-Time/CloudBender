@@ -13,14 +13,13 @@ class StackGroup(object):
         self.name = None
         self.ctx = ctx
         self.path = path
-        self.rel_path = os.path.relpath(path ,ctx['config_path'])
+        self.rel_path = os.path.relpath(path, ctx['config_path'])
         self.config = {}
         self.sgs = []
         self.stacks = []
 
         if self.rel_path == '.':
             self.rel_path = ''
-
 
     def dump_config(self):
         for sg in self.sgs:
@@ -30,7 +29,6 @@ class StackGroup(object):
 
         for s in self.stacks:
             s.dump_config()
-
 
     def read_config(self, parent_config={}):
 
@@ -66,18 +64,15 @@ class StackGroup(object):
             if stackname_prefix:
                 stackname = stackname_prefix + stackname
 
-            new_stack = Stack(name=stackname, template=template,
-                            path=stack_path, rel_path=str(self.rel_path),
-                            tags=dict(tags), parameters=dict(parameters),
-                            template_vars=dict(template_vars),
-                            region=str(region), profile=str(profile),
-                            ctx=self.ctx
-                            )
+            new_stack = Stack(
+                name=stackname, template=template, path=stack_path, rel_path=str(self.rel_path),
+                tags=dict(tags), parameters=dict(parameters), template_vars=dict(template_vars),
+                region=str(region), profile=str(profile), ctx=self.ctx)
             new_stack.read_config()
             self.stacks.append(new_stack)
 
         # Create StackGroups recursively
-        for sub_group in [f.path for f in os.scandir(self.path) if f.is_dir() ]:
+        for sub_group in [f.path for f in os.scandir(self.path) if f.is_dir()]:
             sg = StackGroup(sub_group, self.ctx)
             sg.read_config(_config)
 
@@ -85,7 +80,6 @@ class StackGroup(object):
 
         # Return raw, merged config to parent
         return _config
-
 
     def get_stacks(self, name=None, recursive=True, match_by='name'):
         """ Returns [stack] matching stack_name or [all] """
@@ -105,10 +99,9 @@ class StackGroup(object):
             for sg in self.sgs:
                 s = sg.get_stacks(name, recursive, match_by)
                 if s:
-                    stacks = stacks+s
+                    stacks = stacks + s
 
         return stacks
-
 
     def get_stackgroup(self, name=None, recursive=True, match_by='name'):
         """ Returns stack group matching stackgroup_name or all if None """
@@ -127,21 +120,18 @@ class StackGroup(object):
 
         return None
 
-
-    # TODO: Integrate properly into stackgroup class, borken for now
+    # TODO: Integrate properly into stackgroup class, broken for now
     # stackoutput inspection
-    def BROKEN_inspect_stacks(conglomerate):
+    def BROKEN_inspect_stacks(self, conglomerate):
         # Get all stacks of the conglomertate
-        client = Connection.get_connection('cloudformation')
-        running_stacks=client.describe_stacks()
+        response = self.connection_manager.call('cloudformation', 'decribe_stacks')
 
         stacks = []
-        for stack in running_stacks['Stacks']:
+        for stack in response['Stacks']:
             for tag in stack['Tags']:
                 if tag['Key'] == 'Conglomerate' and tag['Value'] == conglomerate:
                     stacks.append(stack)
                     break
-
 
         # Gather stack outputs, use Tag['Artifact'] as name space: Artifact.OutputName, same as FortyTwo
         stack_outputs = {}
@@ -160,10 +150,9 @@ class StackGroup(object):
             try:
                 for output in stack['Outputs']:
                     # Gather all outputs of the stack into one dimensional key=value structure
-                    stack_outputs[key_prefix+output['OutputKey']]=output['OutputValue']
+                    stack_outputs[key_prefix + output['OutputKey']] = output['OutputValue']
             except KeyError:
                 pass
 
         # Add outputs from stacks into the data for jinja under StackOutput
         return stack_outputs
-
