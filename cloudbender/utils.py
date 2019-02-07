@@ -52,7 +52,7 @@ def ensure_dir(path):
 def setup_logging(debug):
     if debug:
         our_level = logging.DEBUG
-        # logging.getLogger("botocore").setLevel(logging.INFO)
+        logging.getLogger("botocore").setLevel(logging.INFO)
         boto3.set_stream_logger('')
 
         formatter = logging.Formatter(
