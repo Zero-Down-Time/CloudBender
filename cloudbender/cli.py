@@ -25,17 +25,17 @@ def cli(ctx, debug, directory):
     cb.read_config()
     cb.dump_config()
 
-    ctx.obj['cb'] = cb
+    ctx.obj = cb
 
 
 @click.command()
 @click.argument("stack_names", nargs=-1)
 @click.option("--multi", is_flag=True, help="Allow more than one stack to match")
-@click.pass_context
-def render(ctx, stack_names, multi):
+@click.pass_obj
+def render(cb, stack_names, multi):
     """ Renders template and its parameters """
 
-    stacks = _find_stacks(ctx, stack_names, multi)
+    stacks = _find_stacks(cb, stack_names, multi)
 
     for s in stacks:
         s.render()
@@ -45,10 +45,10 @@ def render(ctx, stack_names, multi):
 @click.command()
 @click.argument("stack_names", nargs=-1)
 @click.option("--multi", is_flag=True, help="Allow more than one stack to match")
-@click.pass_context
-def validate(ctx, stack_names, multi):
+@click.pass_obj
+def validate(cb, stack_names, multi):
     """ Validates already rendered templates using cfn-lint """
-    stacks = _find_stacks(ctx, stack_names, multi)
+    stacks = _find_stacks(cb, stack_names, multi)
 
     for s in stacks:
         s.validate()
@@ -57,10 +57,10 @@ def validate(ctx, stack_names, multi):
 @click.command()
 @click.argument("stack_name")
 @click.argument("change_set_name")
-@click.pass_context
-def create_change_set(ctx, stack_name, change_set_name):
+@click.pass_obj
+def create_change_set(cb, stack_name, change_set_name):
     """ Creates a change set for an existing stack """
-    stacks = _find_stacks(ctx, [stack_name])
+    stacks = _find_stacks(cb, [stack_name])
 
     for s in stacks:
         s.create_change_set(change_set_name)
@@ -69,13 +69,13 @@ def create_change_set(ctx, stack_name, change_set_name):
 @click.command()
 @click.argument("stack_names", nargs=-1)
 @click.option("--multi", is_flag=True, help="Allow more than one stack to match")
-@click.pass_context
-def provision(ctx, stack_names, multi):
+@click.pass_obj
+def provision(cb, stack_names, multi):
     """ Creates or updates stacks or stack groups """
 
-    stacks = _find_stacks(ctx, stack_names, multi)
+    stacks = _find_stacks(cb, stack_names, multi)
 
-    for step in sort_stacks(ctx, stacks):
+    for step in sort_stacks(cb, stacks):
         if step:
             with ThreadPoolExecutor(max_workers=len(step)) as group:
                 futures = []
@@ -93,13 +93,13 @@ def provision(ctx, stack_names, multi):
 @click.command()
 @click.argument("stack_names", nargs=-1)
 @click.option("--multi", is_flag=True, help="Allow more than one stack to match")
-@click.pass_context
-def delete(ctx, stack_names, multi):
+@click.pass_obj
+def delete(cb, stack_names, multi):
     """ Deletes stacks or stack groups """
-    stacks = _find_stacks(ctx, stack_names, multi)
+    stacks = _find_stacks(cb, stack_names, multi)
 
     # Reverse steps
-    steps = [s for s in sort_stacks(ctx, stacks)]
+    steps = [s for s in sort_stacks(cb, stacks)]
     delete_steps = steps[::-1]
     for step in delete_steps:
         if step:
@@ -114,16 +114,14 @@ def delete(ctx, stack_names, multi):
 
 
 @click.command()
-@click.pass_context
-def clean(ctx):
+@click.pass_obj
+def clean(cb):
     """ Deletes all previously rendered files locally """
-    cb = ctx.obj['cb']
     cb.clean()
 
 
-def sort_stacks(ctx, stacks):
+def sort_stacks(cb, stacks):
     """ Sort stacks by dependencies """
-    cb = ctx.obj['cb']
 
     data = {}
     for s in stacks:
@@ -165,8 +163,8 @@ def sort_stacks(ctx, stacks):
     assert not data, "A cyclic dependency exists amongst %r" % data
 
 
-def _find_stacks(ctx, stack_names, multi=False):
-    cb = ctx.obj['cb']
+def _find_stacks(cb, stack_names, multi=False):
+    """ search stacks by name """
 
     stacks = []
     for s in stack_names:
@@ -189,6 +187,3 @@ cli.add_command(provision)
 cli.add_command(delete)
 cli.add_command(clean)
 cli.add_command(create_change_set)
-
-if __name__ == '__main__':
-    cli(obj={})
