@@ -1,6 +1,5 @@
 import os
 import re
-import semver
 import hashlib
 import oyaml as yaml
 import json
@@ -10,12 +9,11 @@ import subprocess
 from datetime import datetime, timedelta
 from dateutil.tz import tzutc
 
-import botocore
 from botocore.exceptions import ClientError
 
-from .utils import read_yaml_file, dict_merge
+from .utils import dict_merge
 from .connection import BotoConnection
-from .jinja import JinjaEnv
+from .jinja import JinjaEnv, read_config_file
 from . import __version__
 
 import cfnlint.core
@@ -61,7 +59,7 @@ class Stack(object):
         logger.debug("<Stack {}: {}>".format(self.id, vars(self)))
 
     def read_config(self):
-        _config = read_yaml_file(self.path)
+        _config = read_config_file(self.path)
         for p in ["region", "stackname", "template", "default_lock", "multi_delete", "provides"]:
             if p in _config:
                 setattr(self, p, _config[p])
@@ -81,27 +79,6 @@ class Stack(object):
                 self.dependencies.add(dep)
 
         logger.debug("Stack {} added.".format(self.id))
-
-    def check_fortytwo(self, template):
-        # Fail early if 42 is enabled but not available
-        if self.cfn['Mode'] == "FortyTwo" and self.template != 'FortyTwo':
-            try:
-                response = self.connection_manager.call(
-                    'lambda', 'get_function', {'FunctionName': 'FortyTwo'},
-                    profile=self.profile, region=self.region)
-
-                # Also verify version in case specified in the template's metadata
-                try:
-                    req_ver = template['Metadata']['FortyTwo']['RequiredVersion']
-                    if 'Release' not in response['Tags']:
-                        raise("Lambda FortyTwo has no Release Tag! Required: {}".format(req_ver))
-                    elif semver.compare(req_ver, re.sub("-.*$", '', response['Tags']['Release'])) > 0:
-                        raise("Lambda FortyTwo version is not recent enough! Required: {} vs. Found: {}".format(req_ver, response['Tags']['Release']))
-                except KeyError:
-                    pass
-
-            except botocore.exceptions.ClientError:
-                raise("No Lambda FortyTwo found in your account")
 
     def render(self):
         """Renders the cfn jinja template for this stack"""
@@ -266,7 +243,7 @@ class Stack(object):
                 try:
                     value = str(self.parameters[p])
                     self.cfn_parameters.append({'ParameterKey': p, 'ParameterValue': value})
-                    logger.info('Got {} = {}'.format(p, value))
+                    logger.info('{} {} Parameter {}={}'.format(self.region, self.stackname, p, value))
                 except KeyError:
                     # If we have a Default defined in the CFN skip, as AWS will use it
                     if 'Default' in self.data['Parameters'][p]:
@@ -311,7 +288,7 @@ class Stack(object):
                 'TemplateBody': self.cfn_template,
                 'Parameters': self.cfn_parameters,
                 'Tags': [{"Key": str(k), "Value": str(v)} for k, v in self.tags.items()],
-                'Capabilities': ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM']},
+                'Capabilities': ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM', 'CAPABILITY_AUTO_EXPAND']},
             profile=self.profile, region=self.region)
 
         return self._wait_for_completion()
@@ -332,7 +309,7 @@ class Stack(object):
                     'TemplateBody': self.cfn_template,
                     'Parameters': self.cfn_parameters,
                     'Tags': [{"Key": str(k), "Value": str(v)} for k, v in self.tags.items()],
-                    'Capabilities': ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM']},
+                    'Capabilities': ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM', 'CAPABILITY_AUTO_EXPAND']},
                 profile=self.profile, region=self.region)
 
         except ClientError as e:
