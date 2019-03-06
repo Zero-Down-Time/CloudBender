@@ -2,7 +2,8 @@ import os
 import glob
 import logging
 
-from .utils import read_yaml_file, dict_merge
+from .utils import dict_merge
+from .jinja import read_config_file
 from .stack import Stack
 
 logger = logging.getLogger(__name__)
@@ -36,7 +37,7 @@ class StackGroup(object):
             return None
 
         # First read config.yaml if present
-        _config = read_yaml_file(os.path.join(self.path, 'config.yaml'))
+        _config = read_config_file(os.path.join(self.path, 'config.yaml'))
 
         # Stack Group name if not explicit via config is derived from subfolder, or in case of root object the parent folder
         if "stackgroupname" in _config:
@@ -119,40 +120,3 @@ class StackGroup(object):
                     return s
 
         return None
-
-    # TODO: Integrate properly into stackgroup class, broken for now
-    # stackoutput inspection
-    def BROKEN_inspect_stacks(self, conglomerate):
-        # Get all stacks of the conglomertate
-        response = self.connection_manager.call('cloudformation', 'decribe_stacks')
-
-        stacks = []
-        for stack in response['Stacks']:
-            for tag in stack['Tags']:
-                if tag['Key'] == 'Conglomerate' and tag['Value'] == conglomerate:
-                    stacks.append(stack)
-                    break
-
-        # Gather stack outputs, use Tag['Artifact'] as name space: Artifact.OutputName, same as FortyTwo
-        stack_outputs = {}
-        for stack in stacks:
-            # If stack has an Artifact Tag put resources into the namespace Artifact.Resource
-            artifact = None
-            for tag in stack['Tags']:
-                if tag['Key'] == 'Artifact':
-                    artifact = tag['Value']
-
-            if artifact:
-                key_prefix = "{}.".format(artifact)
-            else:
-                key_prefix = ""
-
-            try:
-                for output in stack['Outputs']:
-                    # Gather all outputs of the stack into one dimensional key=value structure
-                    stack_outputs[key_prefix + output['OutputKey']] = output['OutputValue']
-            except KeyError:
-                pass
-
-        # Add outputs from stacks into the data for jinja under StackOutput
-        return stack_outputs

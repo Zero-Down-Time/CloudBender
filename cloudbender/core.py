@@ -1,8 +1,9 @@
 import os
 import logging
 
-from .utils import read_yaml_file, ensure_dir
+from .utils import ensure_dir
 from .stackgroup import StackGroup
+from .jinja import read_config_file
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +21,7 @@ class CloudBender(object):
             "artifact_paths": [os.path.join(self.root, "artifacts")]
         }
         self.default_settings = {
-            'vars': {'Mode': 'FortyTwo'}
+            'vars': {'Mode': 'CloudBender'}
         }
 
         if not os.path.isdir(self.root):
@@ -30,7 +31,7 @@ class CloudBender(object):
         """Load the <path>/config.yaml, <path>/*.yaml as stacks, sub-folders are child groups """
 
         # Read top level config.yaml and extract CloudBender CTX
-        _config = read_yaml_file(os.path.join(self.ctx['config_path'], 'config.yaml'))
+        _config = read_config_file(os.path.join(self.ctx['config_path'], 'config.yaml'))
         if _config and _config.get('CloudBender'):
             self.ctx.update(_config.get('CloudBender'))
 

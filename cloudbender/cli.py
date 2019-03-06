@@ -187,3 +187,6 @@ cli.add_command(provision)
 cli.add_command(delete)
 cli.add_command(clean)
 cli.add_command(create_change_set)
+
+if __name__ == '__main__':
+    cli(obj={})

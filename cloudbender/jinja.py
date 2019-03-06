@@ -1,8 +1,13 @@
+import os
 import io
 import gzip
-import jinja2
 import re
 import base64
+import yaml
+
+import jinja2
+from jinja2.utils import missing, object_type_repr
+from jinja2._compat import string_types
 
 import pyminifier.token_utils
 import pyminifier.minification
@@ -25,6 +30,9 @@ def cloudbender_ctx(context, cb_ctx={}, reset=False, command=None, args={}):
 
     if 'dependencies' not in cb_ctx:
         cb_ctx['dependencies'] = set()
+
+    if 'mandatory_parameters' not in cb_ctx:
+        cb_ctx['mandatory_parameters'] = set()
 
     if command == 'get_dependencies':
         _deps = sorted(list(cb_ctx['dependencies']))
@@ -179,11 +187,40 @@ def pyminify(source, obfuscate=False, minify=True):
     return minified_source
 
 
+def parse_yaml(block):
+    return yaml.safe_load(block)
+
+
+class SilentUndefined(jinja2.Undefined):
+    '''
+    Log warning for undefiend but continue
+    '''
+    def _fail_with_undefined_error(self, *args, **kwargs):
+        if self._undefined_hint is None:
+            if self._undefined_obj is missing:
+                hint = '%r is undefined' % self._undefined_name
+            elif not isinstance(self._undefined_name, string_types):
+                hint = '%s has no element %r' % (
+                    object_type_repr(self._undefined_obj),
+                    self._undefined_name
+                )
+            else:
+                hint = '%r has no attribute %r' % (
+                    object_type_repr(self._undefined_obj),
+                    self._undefined_name
+                )
+        else:
+            hint = self._undefined_hint
+
+        logger.warning("Undefined variable: {}".format(hint))
+        return ''
+
+
 def JinjaEnv(template_locations=[]):
     jenv = jinja2.Environment(trim_blocks=True,
                               lstrip_blocks=True,
-                              undefined=jinja2.Undefined,
-                              extensions=['jinja2.ext.loopcontrols'])
+                              undefined=SilentUndefined,
+                              extensions=['jinja2.ext.loopcontrols', 'jinja2.ext.do'])
 
     jinja_loaders = []
     for _dir in template_locations:
@@ -198,9 +235,34 @@ def JinjaEnv(template_locations=[]):
 
     jenv.filters['regex_replace'] = regex_replace
     jenv.filters['pyminify'] = pyminify
+    jenv.filters['yaml'] = parse_yaml
 
     jenv.tests['match'] = match
     jenv.tests['regex'] = regex
     jenv.tests['search'] = search
 
     return jenv
+
+
+def read_config_file(path, jinja_args=None):
+    """ reads yaml config file, passes it through jinja and returns data structre """
+
+    if os.path.exists(path):
+        logger.debug("Reading config file: {}".format(path))
+        try:
+            jenv = jinja2.Environment(
+                loader=jinja2.FileSystemLoader(os.path.dirname(path)),
+                undefined=jinja2.StrictUndefined,
+                extensions=['jinja2.ext.loopcontrols'])
+            template = jenv.get_template(os.path.basename(path))
+            rendered_template = template.render(
+                env=os.environ
+            )
+            data = yaml.safe_load(rendered_template)
+            if data:
+                return data
+
+        except Exception as e:
+            logger.exception("Error reading config file: {} ({})".format(path, e))
+
+    return {}

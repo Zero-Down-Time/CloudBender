@@ -1,25 +1,9 @@
 import os
-import yaml
 import copy
 import logging
 import boto3
 
 logger = logging.getLogger(__name__)
-
-
-def read_yaml_file(path):
-    data = {}
-    if os.path.exists(path):
-        with open(path, 'r') as config_file_contents:
-            logger.debug("Reading config file: {}".format(path))
-            try:
-                _data = yaml.load(config_file_contents.read())
-                if _data:
-                    data.update(_data)
-            except Exception as e:
-                logger.warning("Error reading config file: {} ({})".format(path, e))
-
-    return data
 
 
 def dict_merge(a, b):
