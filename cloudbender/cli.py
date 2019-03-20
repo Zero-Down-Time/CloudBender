@@ -36,10 +36,35 @@ def render(cb, stack_names, multi):
     """ Renders template and its parameters """
 
     stacks = _find_stacks(cb, stack_names, multi)
-
     for s in stacks:
         s.render()
         s.write_template_file()
+
+
+@click.command()
+@click.argument("stack_names", nargs=-1)
+@click.option("--multi", is_flag=True, help="Allow more than one stack to match")
+@click.pass_obj
+def sync(cb, stack_names, multi):
+    """ Renders template and provisions it right away """
+
+    stacks = _find_stacks(cb, stack_names, multi)
+    for step in sort_stacks(cb, stacks):
+        if step:
+            with ThreadPoolExecutor(max_workers=len(step)) as group:
+                futures = []
+                for stack in step:
+                    stack.render()
+                    stack.write_template_file()
+
+                    status = stack.get_status()
+                    if not status:
+                        futures.append(group.submit(stack.create))
+                    else:
+                        futures.append(group.submit(stack.update))
+
+                for future in as_completed(futures):
+                    future.result()
 
 
 @click.command()
@@ -182,6 +207,7 @@ def _find_stacks(cb, stack_names, multi=False):
 
 
 cli.add_command(render)
+cli.add_command(sync)
 cli.add_command(validate)
 cli.add_command(provision)
 cli.add_command(delete)
