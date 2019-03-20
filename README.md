@@ -27,5 +27,6 @@ Commands:
   delete             Deletes stacks or stack groups
   provision          Creates or updates stacks or stack groups
   render             Renders template and its parameters
+  sync               Renders template and provisions it right away
   validate           Validates already rendered templates using cfn-lint
 ```

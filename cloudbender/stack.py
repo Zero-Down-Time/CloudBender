@@ -93,10 +93,16 @@ class Stack(object):
             'CloudBender.Version': __version__
         }
 
-        jenv.globals['_config'] = {'cfn': self.template_vars, 'Metadata': template_metadata}
+        cb = False
+        if self.template_vars['Mode'] == "CloudBender":
+            cb = True
+
+        _config = {'cb': cb, 'cfn': self.template_vars, 'Metadata': template_metadata}
+
+        jenv.globals['_config'] = _config
 
         # First render pass to calculate a md5 checksum
-        template_metadata['Template.Hash'] = hashlib.md5(template.render({'cfn': self.template_vars, 'Metadata': template_metadata}).encode('utf-8')).hexdigest()
+        template_metadata['Template.Hash'] = hashlib.md5(template.render(_config).encode('utf-8')).hexdigest()
 
         # Reset and set Metadata for final render pass
         jenv.globals['get_custom_att'](context={'_config': self.template_vars}, reset=True)
@@ -113,7 +119,7 @@ class Stack(object):
             pass
 
         logger.info('Rendering %s', template.filename)
-        rendered = template.render({'cfn': self.template_vars, 'Metadata': template_metadata})
+        rendered = template.render(_config)
 
         try:
             self.data = yaml.load(rendered)
