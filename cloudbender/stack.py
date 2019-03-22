@@ -122,7 +122,7 @@ class Stack(object):
         rendered = template.render(_config)
 
         try:
-            self.data = yaml.load(rendered)
+            self.data = yaml.safe_load(rendered)
         except Exception as e:
             # In case we rendered invalid yaml this helps to debug
             logger.error(rendered)
@@ -178,7 +178,7 @@ class Stack(object):
                 self.cfn_template = yaml_contents.read()
                 logger.debug('Read cfn template %s.', yaml_file)
 
-            self.data = yaml.load(self.cfn_template)
+            self.data = yaml.safe_load(self.cfn_template)
             self._parse_metadata()
 
         else:
