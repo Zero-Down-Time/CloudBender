@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.4.2
+- silence warnings by latest PyYaml 5.1
+
 ## 0.4.1
 - add *sync* command combining *render* and *provision* into one task
 - make cb (boolean) available in Jinja context to allow easy toggle for features relying on cloudbender in templates
