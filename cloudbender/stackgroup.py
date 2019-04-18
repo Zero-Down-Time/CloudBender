@@ -50,7 +50,7 @@ class StackGroup(object):
 
         tags = _config.get('tags', {})
         parameters = _config.get('parameters', {})
-        template_vars = _config.get('vars', {})
+        options = _config.get('options', {})
         region = _config.get('region', 'global')
         profile = _config.get('profile', '')
         stackname_prefix = _config.get('stacknameprefix', '')
@@ -67,7 +67,7 @@ class StackGroup(object):
 
             new_stack = Stack(
                 name=stackname, template=template, path=stack_path, rel_path=str(self.rel_path),
-                tags=dict(tags), parameters=dict(parameters), template_vars=dict(template_vars),
+                tags=dict(tags), parameters=dict(parameters), options=dict(options),
                 region=str(region), profile=str(profile), ctx=self.ctx)
             new_stack.read_config()
             self.stacks.append(new_stack)

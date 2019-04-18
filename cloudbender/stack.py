@@ -4,7 +4,6 @@ import hashlib
 import oyaml as yaml
 import json
 import time
-import subprocess
 
 from datetime import datetime, timedelta
 from dateutil.tz import tzutc
@@ -33,17 +32,19 @@ class StackStatus(object):
 
 
 class Stack(object):
-    def __init__(self, name, path, rel_path, tags=None, parameters=None, template_vars=None, region='global', profile=None, template=None, ctx={}):
+    def __init__(self, name, path, rel_path, tags=None, parameters=None, options=None, region='global', profile=None, template=None, ctx={}):
         self.id = (profile, region, name)
         self.stackname = name
         self.path = path
         self.rel_path = rel_path
         self.tags = tags
         self.parameters = parameters
-        self.template_vars = template_vars
+        self.options = options
         self.region = region
         self.profile = profile
         self.template = template
+        self.md5 = None
+        self.mode = 'CloudBender'
         self.provides = template
         self.cfn_template = None
         self.cfn_parameters = []
@@ -68,11 +69,20 @@ class Stack(object):
             if p in _config:
                 setattr(self, p, dict_merge(getattr(self, p), _config[p]))
 
-        # Inject Artifact for now hard coded
-        self.tags['Artifact'] = self.provides
+        # Inject Artifact if not explicitly set
+        if 'Artifact' not in self.tags:
+            self.tags['Artifact'] = self.provides
 
+        # backwards comp
         if 'vars' in _config:
-            self.template_vars = dict_merge(self.template_vars, _config['vars'])
+            self.options = dict_merge(self.options, _config['vars'])
+            if 'Mode' in self.options:
+                self.mode = self.options['Mode']
+
+        if 'options' in _config:
+            self.options = dict_merge(self.options, _config['options'])
+            if 'Mode' in self.options:
+                self.mode = self.options['Mode']
 
         if 'dependencies' in _config:
             for dep in _config['dependencies']:
@@ -83,62 +93,73 @@ class Stack(object):
     def render(self):
         """Renders the cfn jinja template for this stack"""
 
-        jenv = JinjaEnv(self.ctx['artifact_paths'])
-
-        template = jenv.get_template('{0}{1}'.format(self.template, '.yaml.jinja'))
-
         template_metadata = {
             'Template.Name': self.template,
-            'Template.Hash': 'tbd',
+            'Template.Hash': "__HASH__",
             'CloudBender.Version': __version__
         }
 
-        cb = False
-        if self.template_vars['Mode'] == "CloudBender":
-            cb = True
+        # cfn is provided for old configs
+        _config = {'mode': self.mode, 'options': self.options, 'metadata': template_metadata, 'cfn': self.options}
 
-        _config = {'cb': cb, 'cfn': self.template_vars, 'Metadata': template_metadata}
-
+        jenv = JinjaEnv(self.ctx['artifact_paths'])
         jenv.globals['_config'] = _config
 
-        # First render pass to calculate a md5 checksum
-        template_metadata['Template.Hash'] = hashlib.md5(template.render(_config).encode('utf-8')).hexdigest()
-
-        # Reset and set Metadata for final render pass
-        jenv.globals['get_custom_att'](context={'_config': self.template_vars}, reset=True)
-        jenv.globals['render_once'](context={'_config': self.template_vars}, reset=True)
-        jenv.globals['cloudbender_ctx'](context={'_config': self.template_vars}, reset=True)
-
-        # Try to add latest tag/commit for the template source, skip if not in git tree
-        try:
-            _comment = subprocess.check_output('git log -1 --pretty=%B {}'.format(template.filename).split(' ')).decode('utf-8').strip().replace('"', '').replace('#', '').replace('\n', '').replace(':', ' ')
-            if _comment:
-                template_metadata['Template.LastGitComment'] = _comment
-
-        except subprocess.CalledProcessError:
-            pass
+        template = jenv.get_template('{0}{1}'.format(self.template, '.yaml.jinja'))
 
         logger.info('Rendering %s', template.filename)
-        rendered = template.render(_config)
 
         try:
-            self.data = yaml.safe_load(rendered)
+            self.cfn_template = template.render(_config)
+            self.cfn_data = yaml.safe_load(self.cfn_template)
         except Exception as e:
             # In case we rendered invalid yaml this helps to debug
-            logger.error(rendered)
+            if self.cfn_template:
+                logger.error(self.cfn_template)
             raise e
 
         # Some sanity checks and final cosmetics
         # Check for empty top level Parameters, Outputs and Conditions and remove
         for key in ['Parameters', 'Outputs', 'Conditions']:
-            if key in self.data and self.data[key] is None:
+            if key in self.cfn_data and self.cfn_data[key] is None:
                 # Delete from data structure which also takes care of json
-                del self.data[key]
-                # but also remove from rendered for the yaml file
-                rendered = rendered.replace('\n' + key + ":", '')
+                del self.cfn_data[key]
 
-        # Condense multiple empty lines to one
-        self.cfn_template = re.sub(r'\n\s*\n', '\n\n', rendered)
+                # but also remove from rendered for the yaml file
+                self.cfn_template = self.cfn_template.replace('\n' + key + ":", '')
+
+        if not re.search('CloudBender::', self.cfn_template):
+            logger.info("CloudBender not required -> removing Transform")
+            del self.cfn_data['Transform']
+            self.cfn_template = self.cfn_template.replace('Transform: [CloudBender]', '')
+
+        # Remove and condense multiple empty lines
+        self.cfn_template = re.sub(r'\n\s*\n', '\n\n', self.cfn_template)
+        self.cfn_template = re.sub(r'^\s*', '', self.cfn_template)
+        self.cfn_template = re.sub(r'\s*$', '', self.cfn_template)
+
+        # set md5 last
+        self.md5 = hashlib.md5(self.cfn_template.encode('utf-8')).hexdigest()
+        self.cfn_data['Metadata']['Hash'] = self.md5
+
+        # Add Legacy FortyTwo if needed to prevent AWS from replacing existing resources for NO reason ;-(
+        include = []
+        search_attributes(self.cfn_data, include)
+        if len(include):
+            _res = """
+  FortyTwo:
+    Type: Custom::FortyTwo
+    Properties:
+      ServiceToken:
+        Fn::Sub: "arn:aws:lambda:${{AWS::Region}}:${{AWS::AccountId}}:function:FortyTwo"
+      UpdateToken: {}
+      Include: {}""".format(self.md5, sorted(set(include)))
+            self.cfn_data['Resources'].update(yaml.load(_res))
+
+            self.cfn_template = re.sub(r'Resources:', r'Resources:' + _res + '\n', self.cfn_template)
+            logger.info("Legacy Mode -> added Custom::FortyTwo")
+
+        self.cfn_template = self.cfn_template.replace('__HASH__', self.md5)
 
         # Update internal data structures
         self._parse_metadata()
@@ -146,7 +167,7 @@ class Stack(object):
     def _parse_metadata(self):
         # Extract dependencies if present
         try:
-            for dep in self.data['Metadata']['CloudBender']['Dependencies']:
+            for dep in self.cfn_data['Metadata']['CloudBender']['Dependencies']:
                 self.dependencies.add(dep)
         except KeyError:
             pass
@@ -178,7 +199,7 @@ class Stack(object):
                 self.cfn_template = yaml_contents.read()
                 logger.debug('Read cfn template %s.', yaml_file)
 
-            self.data = yaml.safe_load(self.cfn_template)
+            self.cfn_data = yaml.safe_load(self.cfn_template)
             self._parse_metadata()
 
         else:
@@ -189,13 +210,17 @@ class Stack(object):
         self.read_template_file()
 
         try:
-            ignore_checks = self.data['Metadata']['cfnlint_ignore']
+            ignore_checks = self.cfn_data['Metadata']['cfnlint_ignore']
         except KeyError:
             ignore_checks = []
 
         # Ignore some more checks around injected parameters as we generate these
-        if self.template_vars['Mode'] == "Piped":
+        if self.mode == "Piped":
             ignore_checks = ignore_checks + ['W2505', 'W2509', 'W2507']
+
+        # Ignore checks regarding overloaded properties
+        if self.mode == "CloudBender":
+            ignore_checks = ignore_checks + ['E3035', 'E3002', 'E3012', 'W2001', 'E3001']
 
         filename = os.path.join(self.ctx['template_path'], self.rel_path, self.stackname + ".yaml")
         logger.info('Validating {0}'.format(filename))
@@ -223,18 +248,18 @@ class Stack(object):
 
         # Inspect all outputs of the running Conglomerate members
         # if we run in Piped Mode
-        # if self.template_vars['Mode'] == "Piped":
+        # if self.mode == "Piped":
         #     try:
         #         stack_outputs = inspect_stacks(config['tags']['Conglomerate'])
         #         logger.info(pprint.pformat(stack_outputs))
         #     except KeyError:
         #        pass
 
-        if 'Parameters' in self.data:
+        if 'Parameters' in self.cfn_data:
             self.cfn_parameters = []
-            for p in self.data['Parameters']:
+            for p in self.cfn_data['Parameters']:
                 # In Piped mode we try to resolve all Paramters first via stack_outputs
-                # if config['cfn']['Mode'] == "Piped":
+                # if self.mode == "Piped":
                 #    try:
                 #        # first reverse the rename due to AWS alphanumeric restriction for parameter names
                 #        _p = p.replace('DoT','.')
@@ -252,7 +277,7 @@ class Stack(object):
                     logger.info('{} {} Parameter {}={}'.format(self.region, self.stackname, p, value))
                 except KeyError:
                     # If we have a Default defined in the CFN skip, as AWS will use it
-                    if 'Default' in self.data['Parameters'][p]:
+                    if 'Default' in self.cfn_data['Parameters'][p]:
                         continue
                     else:
                         logger.error('Cannot find value for parameter {0}'.format(p))
@@ -470,3 +495,23 @@ class Stack(object):
         # Ensure output dirs exist
         if not os.path.exists(os.path.join(self.ctx[path], self.rel_path)):
             os.makedirs(os.path.join(self.ctx[path], self.rel_path))
+
+
+def search_attributes(template, attributes):
+    """ Traverses a template and searches for all Fn::GetAtt calls to FortyTwo
+        adding them to the passed in attributes set
+    """
+    if isinstance(template, dict):
+        for k, v in template.items():
+            # Look for Fn::GetAtt
+            if k == "Fn::GetAtt" and isinstance(v, list):
+                if v[0] == "FortyTwo":
+                    attributes.append(v[1])
+
+            if isinstance(v, dict) or isinstance(v, list):
+                search_attributes(v, attributes)
+
+    elif isinstance(template, list):
+        for k in template:
+            if isinstance(k, dict) or isinstance(k, list):
+                search_attributes(k, attributes)
