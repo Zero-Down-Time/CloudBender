@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.0
+- new custom Jinja function `sub`, works the same as re.sub
+- added possibility to use custom Jinja function `inline_yaml` to set data as yaml
+- disabled SilentUndefined
+- added Jinja2 extension `do` and `loopcontrols`
+- new custom Jinja function `option` to access options at render time incl. default support for nested objects
+- removed custom Jinja functions around old remote Ref handling
+
 ## 0.4.2
 - silence warnings by latest PyYaml 5.1
 

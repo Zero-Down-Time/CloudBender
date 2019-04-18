@@ -20,9 +20,6 @@ class CloudBender(object):
             "parameter_path": os.path.join(self.root, "parameters"),
             "artifact_paths": [os.path.join(self.root, "artifacts")]
         }
-        self.default_settings = {
-            'vars': {'Mode': 'CloudBender'}
-        }
 
         if not os.path.isdir(self.root):
             raise "Check '{0}' exists and is a valid project folder.".format(root_path)
@@ -55,7 +52,7 @@ class CloudBender(object):
                 ensure_dir(self.ctx[k])
 
         self.sg = StackGroup(self.ctx['config_path'], self.ctx)
-        self.sg.read_config(self.default_settings)
+        self.sg.read_config()
 
         self.all_stacks = self.sg.get_stacks()
 

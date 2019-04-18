@@ -8,6 +8,8 @@ import yaml
 import jinja2
 from jinja2.utils import missing, object_type_repr
 from jinja2._compat import string_types
+from jinja2.filters import make_attrgetter
+from jinja2.runtime import Undefined
 
 import pyminifier.token_utils
 import pyminifier.minification
@@ -15,76 +17,31 @@ import pyminifier.compression
 import pyminifier.obfuscate
 import types
 
-
 import logging
+
 logger = logging.getLogger(__name__)
 
 
 @jinja2.contextfunction
-def cloudbender_ctx(context, cb_ctx={}, reset=False, command=None, args={}):
+def option(context, attribute, default_value=u'', source='options'):
+    """ Get attribute from options data structure, default_value otherwise """
+    environment = context.environment
+    options = environment.globals['_config'][source]
 
-    # Reset state
-    if reset:
-        cb_ctx.clear()
-        return
+    if not attribute:
+        return default_value
 
-    if 'dependencies' not in cb_ctx:
-        cb_ctx['dependencies'] = set()
+    try:
+        getter = make_attrgetter(environment, attribute)
+        value = getter(options)
 
-    if 'mandatory_parameters' not in cb_ctx:
-        cb_ctx['mandatory_parameters'] = set()
+        if isinstance(value, Undefined):
+            return default_value
 
-    if command == 'get_dependencies':
-        _deps = sorted(list(cb_ctx['dependencies']))
-        if _deps:
-            logger.debug("Stack depencies: {}".format(','.join(_deps)))
-        return _deps
+        return value
 
-    elif command == 'add_dependency':
-        try:
-            cb_ctx['dependencies'].add(args['dep'])
-            logger.debug("Adding stack depency to {}".format(args['dep']))
-        except KeyError:
-            pass
-
-    else:
-        raise("Unknown command")
-
-
-@jinja2.contextfunction
-def get_custom_att(context, att=None, ResourceName="FortyTwo", attributes={}, reset=False, dump=False):
-    """ Returns the rendered required fragement and also collects all foreign
-        attributes for the specified CustomResource to include them later in
-        the actual CustomResource include property """
-
-    # Reset state
-    if reset:
-        attributes.clear()
-        return
-
-    # return all registered attributes
-    if dump:
-        return attributes
-
-    # If called with an attribute, return fragement and register dependency
-    if att:
-        config = context.get_all()['_config']
-
-        if ResourceName not in attributes:
-            attributes[ResourceName] = set()
-
-        attributes[ResourceName].add(att)
-        if ResourceName == 'FortyTwo':
-            cloudbender_ctx(context, command='add_dependency', args={'dep': att.split('.')[0]})
-
-        if config['cfn']['Mode'] == "FortyTwo":
-            return('{{ "Fn::GetAtt": ["{0}", "{1}"] }}'.format(ResourceName, att))
-        elif config['cfn']['Mode'] == "AWSImport" and ResourceName == "FortyTwo":
-            # AWS only allows - and :, so replace '.' with ":"
-            return('{{ "Fn::ImportValue": {{ "Fn::Sub": "${{Conglomerate}}:{0}" }} }}'.format(att.replace('.', ':')))
-        else:
-            # We need to replace . with some PureAlphaNumeric thx AWS ...
-            return('{{ Ref: {0} }}'.format(att.replace('.', 'DoT')))
+    except (jinja2.exceptions.UndefinedError):
+        return default_value
 
 
 @jinja2.contextfunction
@@ -105,21 +62,6 @@ def include_raw_gz(context, files=None, gz=True):
     f.close()
 
     return base64.b64encode(buf.getvalue()).decode('utf-8')
-
-
-@jinja2.contextfunction
-def render_once(context, name=None, resources=set(), reset=False):
-    """ Utility function returning True only once per name """
-
-    if reset:
-        resources.clear()
-        return
-
-    if name and name not in resources:
-        resources.add(name)
-        return True
-
-    return False
 
 
 @jinja2.contextfunction
@@ -154,7 +96,7 @@ def search(value, pattern='', ignorecase=False):
 
 
 # Custom filters
-def regex_replace(value='', pattern='', replace='', ignorecase=False):
+def sub(value='', pattern='', replace='', ignorecase=False):
     if ignorecase:
         flags = re.I
     else:
@@ -183,11 +125,11 @@ def pyminify(source, obfuscate=False, minify=True):
     source = pyminifier.token_utils.untokenize(tokens)
     # logger.info(source)
     minified_source = pyminifier.compression.gz_pack(source)
-    logger.info("Compressed python code to {}".format(len(minified_source)))
+    logger.info("Compressed python code from {} to {}".format(len(source), len(minified_source)))
     return minified_source
 
 
-def parse_yaml(block):
+def inline_yaml(block):
     return yaml.safe_load(block)
 
 
@@ -219,8 +161,8 @@ class SilentUndefined(jinja2.Undefined):
 def JinjaEnv(template_locations=[]):
     jenv = jinja2.Environment(trim_blocks=True,
                               lstrip_blocks=True,
-                              undefined=SilentUndefined,
                               extensions=['jinja2.ext.loopcontrols', 'jinja2.ext.do'])
+#                              undefined=SilentUndefined,
 
     jinja_loaders = []
     for _dir in template_locations:
@@ -228,14 +170,12 @@ def JinjaEnv(template_locations=[]):
     jenv.loader = jinja2.ChoiceLoader(jinja_loaders)
 
     jenv.globals['include_raw'] = include_raw_gz
-    jenv.globals['get_custom_att'] = get_custom_att
-    jenv.globals['cloudbender_ctx'] = cloudbender_ctx
-    jenv.globals['render_once'] = render_once
     jenv.globals['raise'] = raise_helper
+    jenv.globals['option'] = option
 
-    jenv.filters['regex_replace'] = regex_replace
+    jenv.filters['sub'] = sub
     jenv.filters['pyminify'] = pyminify
-    jenv.filters['yaml'] = parse_yaml
+    jenv.filters['inline_yaml'] = inline_yaml
 
     jenv.tests['match'] = match
     jenv.tests['regex'] = regex

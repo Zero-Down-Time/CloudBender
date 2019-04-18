@@ -4,7 +4,7 @@ test:
 	tox
 
 clean:
-	rm -rf .tox .cache dist
+	rm -rf .tox .cache .coverage .eggs cloudbender.egg-info .pytest_cache dist
 
 dist:
 	python setup.py bdist_wheel --universal
