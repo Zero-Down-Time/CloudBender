@@ -154,7 +154,7 @@ class Stack(object):
         Fn::Sub: "arn:aws:lambda:${{AWS::Region}}:${{AWS::AccountId}}:function:FortyTwo"
       UpdateToken: {}
       Include: {}""".format(self.md5, sorted(set(include)))
-            self.cfn_data['Resources'].update(yaml.load(_res))
+            self.cfn_data['Resources'].update(yaml.safe_load(_res))
 
             self.cfn_template = re.sub(r'Resources:', r'Resources:' + _res + '\n', self.cfn_template)
             logger.info("Legacy Mode -> added Custom::FortyTwo")
