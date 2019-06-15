@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.5.1
+- Automatic dependency resolution to artifacts referred to by StackRef or FortyTwo
+
 ## 0.5.0
 - new custom Jinja function `sub`, works the same as re.sub
 - added possibility to use custom Jinja function `inline_yaml` to set data as yaml
