@@ -76,13 +76,12 @@ class Stack(object):
         # backwards comp
         if 'vars' in _config:
             self.options = dict_merge(self.options, _config['vars'])
-            if 'Mode' in self.options:
-                self.mode = self.options['Mode']
 
         if 'options' in _config:
             self.options = dict_merge(self.options, _config['options'])
-            if 'Mode' in self.options:
-                self.mode = self.options['Mode']
+
+        if 'Mode' in self.options:
+            self.mode = self.options['Mode']
 
         if 'dependencies' in _config:
             for dep in _config['dependencies']:
@@ -98,9 +97,7 @@ class Stack(object):
             'Template.Hash': "__HASH__",
             'CloudBender.Version': __version__
         }
-
-        # cfn is provided for old configs
-        _config = {'mode': self.mode, 'options': self.options, 'metadata': template_metadata, 'cfn': self.options}
+        _config = {'mode': self.mode, 'options': self.options, 'metadata': template_metadata}
 
         jenv = JinjaEnv(self.ctx['artifact_paths'])
         jenv.globals['_config'] = _config
@@ -118,20 +115,41 @@ class Stack(object):
                 logger.error(self.cfn_template)
             raise e
 
-        # Some sanity checks and final cosmetics
+        if not re.search('CloudBender::', self.cfn_template):
+            logger.info("CloudBender not required -> removing Transform and Conglomerate parameter")
+            self.cfn_template = self.cfn_template.replace('Transform: [CloudBender]', '')
+
+            _res = """
+  Conglomerate:
+    Type: String
+    Description: Project / Namespace this stack is part of
+"""
+            self.cfn_template = re.sub(_res, '', self.cfn_template)
+
+        # Add Legacy FortyTwo resource to prevent AWS from replacing existing resources for NO reason ;-(
+        include = []
+        search_refs(self.cfn_data, include)
+        if len(include) and 'Legacy' in self.options:
+            _res = """
+  FortyTwo:
+    Type: Custom::FortyTwo
+    Properties:
+      ServiceToken:
+        Fn::Sub: "arn:aws:lambda:${{AWS::Region}}:${{AWS::AccountId}}:function:FortyTwo"
+      UpdateToken: __HASH__
+      Include: {}""".format(sorted(set(include)))
+
+            self.cfn_template = re.sub(r'Resources:', r'Resources:' + _res + '\n', self.cfn_template)
+            logger.info("Legacy Mode -> added Custom::FortyTwo")
+
+        # Re-read updated template
+        self.cfn_data = yaml.safe_load(self.cfn_template)
+
         # Check for empty top level Parameters, Outputs and Conditions and remove
         for key in ['Parameters', 'Outputs', 'Conditions']:
-            if key in self.cfn_data and self.cfn_data[key] is None:
-                # Delete from data structure which also takes care of json
+            if key in self.cfn_data and not self.cfn_data[key]:
                 del self.cfn_data[key]
-
-                # but also remove from rendered for the yaml file
                 self.cfn_template = self.cfn_template.replace('\n' + key + ":", '')
-
-        if not re.search('CloudBender::', self.cfn_template):
-            logger.info("CloudBender not required -> removing Transform")
-            del self.cfn_data['Transform']
-            self.cfn_template = self.cfn_template.replace('Transform: [CloudBender]', '')
 
         # Remove and condense multiple empty lines
         self.cfn_template = re.sub(r'\n\s*\n', '\n\n', self.cfn_template)
@@ -140,37 +158,25 @@ class Stack(object):
 
         # set md5 last
         self.md5 = hashlib.md5(self.cfn_template.encode('utf-8')).hexdigest()
-        self.cfn_data['Metadata']['Hash'] = self.md5
-
-        # Add Legacy FortyTwo if needed to prevent AWS from replacing existing resources for NO reason ;-(
-        include = []
-        search_attributes(self.cfn_data, include)
-        if len(include):
-            _res = """
-  FortyTwo:
-    Type: Custom::FortyTwo
-    Properties:
-      ServiceToken:
-        Fn::Sub: "arn:aws:lambda:${{AWS::Region}}:${{AWS::AccountId}}:function:FortyTwo"
-      UpdateToken: {}
-      Include: {}""".format(self.md5, sorted(set(include)))
-            self.cfn_data['Resources'].update(yaml.safe_load(_res))
-
-            self.cfn_template = re.sub(r'Resources:', r'Resources:' + _res + '\n', self.cfn_template)
-            logger.info("Legacy Mode -> added Custom::FortyTwo")
-
         self.cfn_template = self.cfn_template.replace('__HASH__', self.md5)
 
         # Update internal data structures
         self._parse_metadata()
+        print(self.dependencies)
 
     def _parse_metadata(self):
-        # Extract dependencies if present
+        # Extract dependencies
         try:
             for dep in self.cfn_data['Metadata']['CloudBender']['Dependencies']:
                 self.dependencies.add(dep)
         except KeyError:
             pass
+
+        # Add CloudBender or FortyTwo dependencies
+        include = []
+        search_refs(self.cfn_data, include)
+        for ref in include:
+            self.dependencies.add(ref.split('.')[0])
 
     def write_template_file(self):
         if self.cfn_template:
@@ -497,21 +503,28 @@ class Stack(object):
             os.makedirs(os.path.join(self.ctx[path], self.rel_path))
 
 
-def search_attributes(template, attributes):
+def search_refs(template, attributes):
     """ Traverses a template and searches for all Fn::GetAtt calls to FortyTwo
         adding them to the passed in attributes set
     """
     if isinstance(template, dict):
         for k, v in template.items():
-            # Look for Fn::GetAtt
+            # FortyTwo Fn::GetAtt
             if k == "Fn::GetAtt" and isinstance(v, list):
                 if v[0] == "FortyTwo":
                     attributes.append(v[1])
 
+            # CloudBender::StackRef
+            if k == "CloudBender::StackRef":
+                try:
+                    attributes.append(v['StackTags']['Artifact'])
+                except KeyError:
+                    pass
+
             if isinstance(v, dict) or isinstance(v, list):
-                search_attributes(v, attributes)
+                search_refs(v, attributes)
 
     elif isinstance(template, list):
         for k in template:
             if isinstance(k, dict) or isinstance(k, list):
-                search_attributes(k, attributes)
+                search_refs(k, attributes)
