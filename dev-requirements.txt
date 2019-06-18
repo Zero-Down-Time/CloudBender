@@ -4,3 +4,6 @@ oyaml
 click
 pyminifier
 cfn-lint
+flake8
+pytest
+twine

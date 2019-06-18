@@ -1,16 +1,24 @@
-.PHONY: test dist test_upload upload
+VERSION ?= $(shell grep '__version__' cloudbender/__init__.py | cut -d' ' -f3 | cut -d'-' -f1 | sed -e 's/"//g')
+PACKAGE_FILE := dist/cloudbender-$(VERSION)-py2.py3-none-any.whl
+
+.PHONY: test build test_upload upload all
+
+all: test build
 
 test:
-	tox
+	flake8 --ignore=E501 cloudbender tests
+	TEST=True pytest --log-cli-level=DEBUG
 
 clean:
-	rm -rf .tox .cache .coverage .eggs cloudbender.egg-info .pytest_cache dist
+	rm -rf .cache .coverage .eggs cloudbender.egg-info .pytest_cache dist
 
-dist:
+build: $(PACKAGE_FILE)
+
+$(PACKAGE_FILE):
 	python setup.py bdist_wheel --universal
 
-test_upload: clean dist
+test_upload: $(PACKAGE_FILE)
 	twine upload --repository-url https://test.pypi.org/legacy/ dist/cloudbender-*.whl
 
-upload: clean dist
+upload: $(PACKAGE_FILE)
 	twine upload dist/cloudbender-*.whl
