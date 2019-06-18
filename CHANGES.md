@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.2
+- Remove tox dependency during build
+- Introduce drone.io support
+- Makefile cleanup
+
 ## 0.5.1
 - Automatic dependency resolution to artifacts referred to by StackRef or FortyTwo
 
