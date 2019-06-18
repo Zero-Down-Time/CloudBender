@@ -23,7 +23,7 @@ steps:
       from_secret: TWINE_PASSWORD
   commands:
   - which make || apk add make
-  - pip install -r dev-requirements.txt
+  - pip install -r twine
   - make upload
   when:
     event:
