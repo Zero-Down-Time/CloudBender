@@ -1,3 +1,5 @@
+[![Build Status](https://drone.zero-downtime.net/api/badges/ZeroDownTime/CloudBender/status.svg)](https://drone.zero-downtime.net/ZeroDownTime/CloudBender)
+
 # CloudBender
 
 # About
