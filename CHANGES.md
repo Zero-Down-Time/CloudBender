@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.0
+- Implemented Piped mode again
+  Allows all stack references to be supplied via injected parameters
+  Tries to automatically resolve injected paramteres by inspecting matching outputs from othe running stacks at provision time
+- minor bugfixing
+
 ## 0.5.2
 - Remove tox dependency during build
 - Introduce drone.io support
