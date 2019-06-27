@@ -297,7 +297,7 @@ class Stack(object):
                     logger.info('{} {} Parameter {}={}'.format(self.region, self.stackname, p, value))
                 else:
                     # If we have a Default defined in the CFN skip, as AWS will use it
-                    if not 'Default' in self.cfn_data['Parameters'][p]:
+                    if 'Default' not in self.cfn_data['Parameters'][p]:
                         _errors.append(p)
 
             if _errors:
