@@ -128,8 +128,8 @@ class Stack(object):
 
         # Add Legacy FortyTwo resource to prevent AWS from replacing existing resources for NO reason ;-(
         include = []
-        search_refs(self.cfn_data, include)
-        if len(include) and 'Legacy' in self.options:
+        search_refs(self.cfn_data, include, self.mode)
+        if self.mode != "Piped" and len(include) and 'Legacy' in self.options:
             _res = """
   FortyTwo:
     Type: Custom::FortyTwo
@@ -141,6 +141,17 @@ class Stack(object):
 
             self.cfn_template = re.sub(r'Resources:', r'Resources:' + _res + '\n', self.cfn_template)
             logger.info("Legacy Mode -> added Custom::FortyTwo")
+
+        elif self.mode == "Piped" and len(include):
+            _res = ""
+            for attr in include:
+                _res = _res + """
+  {0}:
+    Type: String
+    Description: Parameter to provide remote stack attribute {0}""".format(attr)
+
+            self.cfn_template = re.sub(r'Parameters:', r'Parameters:' + _res + '\n', self.cfn_template)
+            logger.info("Piped mode: Added parameters for remote stack references")
 
         # Re-read updated template
         self.cfn_data = yaml.safe_load(self.cfn_template)
@@ -162,7 +173,6 @@ class Stack(object):
 
         # Update internal data structures
         self._parse_metadata()
-        print(self.dependencies)
 
     def _parse_metadata(self):
         # Extract dependencies
@@ -174,9 +184,12 @@ class Stack(object):
 
         # Add CloudBender or FortyTwo dependencies
         include = []
-        search_refs(self.cfn_data, include)
+        search_refs(self.cfn_data, include, self.mode)
         for ref in include:
-            self.dependencies.add(ref.split('.')[0])
+            if self.mode != "Piped":
+                self.dependencies.add(ref.split('.')[0])
+            else:
+                self.dependencies.add(ref.split('DoT')[0])
 
     def write_template_file(self):
         if self.cfn_template:
@@ -503,7 +516,7 @@ class Stack(object):
             os.makedirs(os.path.join(self.ctx[path], self.rel_path))
 
 
-def search_refs(template, attributes):
+def search_refs(template, attributes, mode):
     """ Traverses a template and searches for all Fn::GetAtt calls to FortyTwo
         adding them to the passed in attributes set
     """
@@ -521,10 +534,14 @@ def search_refs(template, attributes):
                 except KeyError:
                     pass
 
+            # PipedMode Refs
+            if mode == "Piped" and k == "Ref" and "DoT" in v:
+                attributes.append(v)
+
             if isinstance(v, dict) or isinstance(v, list):
-                search_refs(v, attributes)
+                search_refs(v, attributes, mode)
 
     elif isinstance(template, list):
         for k in template:
             if isinstance(k, dict) or isinstance(k, list):
-                search_refs(k, attributes)
+                search_refs(k, attributes, mode)
