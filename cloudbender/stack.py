@@ -10,10 +10,11 @@ from dateutil.tz import tzutc
 
 from botocore.exceptions import ClientError
 
-from .utils import dict_merge
+from .utils import dict_merge, search_refs
 from .connection import BotoConnection
 from .jinja import JinjaEnv, read_config_file
 from . import __version__
+from .exceptions import ParameterNotFound
 
 import cfnlint.core
 
@@ -265,41 +266,42 @@ class Stack(object):
 
         self.read_template_file()
 
-        # Inspect all outputs of the running Conglomerate members
-        # if we run in Piped Mode
-        # if self.mode == "Piped":
-        #     try:
-        #         stack_outputs = inspect_stacks(config['tags']['Conglomerate'])
-        #         logger.info(pprint.pformat(stack_outputs))
-        #     except KeyError:
-        #        pass
+        # if we run in Piped Mode, inspect all outputs of the running Conglomerate members
+        if self.mode == "Piped":
+            stack_outputs = {}
+            try:
+                stack_outputs = self._inspect_stacks(self.tags['Conglomerate'])
+            except KeyError:
+                pass
 
         if 'Parameters' in self.cfn_data:
+            _errors = []
             self.cfn_parameters = []
             for p in self.cfn_data['Parameters']:
                 # In Piped mode we try to resolve all Paramters first via stack_outputs
-                # if self.mode == "Piped":
-                #    try:
-                #        # first reverse the rename due to AWS alphanumeric restriction for parameter names
-                #        _p = p.replace('DoT','.')
-                #        value = str(stack_outputs[_p])
-                #        parameters.append({'ParameterKey': p, 'ParameterValue': value })
-                #        logger.info('Got {} = {} from running stack'.format(p,value))
-                #        continue
-                #    except KeyError:
-                #        pass
+                if self.mode == "Piped":
+                    try:
+                        # first reverse the rename due to AWS alphanumeric restriction for parameter names
+                        _p = p.replace('DoT', '.')
+                        value = str(stack_outputs[_p])
+                        self.cfn_parameters.append({'ParameterKey': p, 'ParameterValue': value})
+                        logger.info('Got {} = {} from running stack'.format(p, value))
+                        continue
+                    except KeyError:
+                        pass
 
                 # Key name in config tree is: stacks.<self.stackname>.parameters.<parameter>
-                try:
+                if p in self.parameters:
                     value = str(self.parameters[p])
                     self.cfn_parameters.append({'ParameterKey': p, 'ParameterValue': value})
                     logger.info('{} {} Parameter {}={}'.format(self.region, self.stackname, p, value))
-                except KeyError:
+                else:
                     # If we have a Default defined in the CFN skip, as AWS will use it
-                    if 'Default' in self.cfn_data['Parameters'][p]:
-                        continue
-                    else:
-                        logger.error('Cannot find value for parameter {0}'.format(p))
+                    if not 'Default' in self.cfn_data['Parameters'][p]:
+                        _errors.append(p)
+
+            if _errors:
+                raise ParameterNotFound('Cannot find value for parameters: {0}'.format(_errors))
 
     def write_parameter_file(self):
         parameter_file = os.path.join(self.ctx['parameter_path'], self.rel_path, self.stackname + ".yaml")
@@ -515,33 +517,41 @@ class Stack(object):
         if not os.path.exists(os.path.join(self.ctx[path], self.rel_path)):
             os.makedirs(os.path.join(self.ctx[path], self.rel_path))
 
+    # stackoutput inspection
+    def _inspect_stacks(self, conglomerate):
+        # Get all stacks of the conglomertate
+        running_stacks = self.connection_manager.call(
+            "cloudformation",
+            "describe_stacks",
+            profile=self.profile, region=self.region)
 
-def search_refs(template, attributes, mode):
-    """ Traverses a template and searches for all Fn::GetAtt calls to FortyTwo
-        adding them to the passed in attributes set
-    """
-    if isinstance(template, dict):
-        for k, v in template.items():
-            # FortyTwo Fn::GetAtt
-            if k == "Fn::GetAtt" and isinstance(v, list):
-                if v[0] == "FortyTwo":
-                    attributes.append(v[1])
+        stacks = []
+        for stack in running_stacks['Stacks']:
+            for tag in stack['Tags']:
+                if tag['Key'] == 'Conglomerate' and tag['Value'] == conglomerate:
+                    stacks.append(stack)
+                    break
 
-            # CloudBender::StackRef
-            if k == "CloudBender::StackRef":
-                try:
-                    attributes.append(v['StackTags']['Artifact'])
-                except KeyError:
-                    pass
+        # Gather stack outputs, use Tag['Artifact'] as name space: Artifact.OutputName, same as FortyTwo
+        stack_outputs = {}
+        for stack in stacks:
+            # If stack has an Artifact Tag put resources into the namespace Artifact.Resource
+            artifact = None
+            for tag in stack['Tags']:
+                if tag['Key'] == 'Artifact':
+                    artifact = tag['Value']
 
-            # PipedMode Refs
-            if mode == "Piped" and k == "Ref" and "DoT" in v:
-                attributes.append(v)
+            if artifact:
+                key_prefix = "{}.".format(artifact)
+            else:
+                key_prefix = ""
 
-            if isinstance(v, dict) or isinstance(v, list):
-                search_refs(v, attributes, mode)
+            try:
+                for output in stack['Outputs']:
+                    # Gather all outputs of the stack into one dimensional key=value structure
+                    stack_outputs[key_prefix + output['OutputKey']] = output['OutputValue']
+            except KeyError:
+                pass
 
-    elif isinstance(template, list):
-        for k in template:
-            if isinstance(k, dict) or isinstance(k, list):
-                search_refs(k, attributes, mode)
+        # Add outputs from stacks into the data for jinja under StackOutput
+        return stack_outputs

@@ -58,3 +58,34 @@ def setup_logging(debug):
     logger.addHandler(log_handler)
     logger.setLevel(our_level)
     return logger
+
+
+def search_refs(template, attributes, mode):
+    """ Traverses a template and searches for all Fn::GetAtt calls to FortyTwo
+        adding them to the passed in attributes set
+    """
+    if isinstance(template, dict):
+        for k, v in template.items():
+            # FortyTwo Fn::GetAtt
+            if k == "Fn::GetAtt" and isinstance(v, list):
+                if v[0] == "FortyTwo":
+                    attributes.append(v[1])
+
+            # CloudBender::StackRef
+            if k == "CloudBender::StackRef":
+                try:
+                    attributes.append(v['StackTags']['Artifact'])
+                except KeyError:
+                    pass
+
+            # PipedMode Refs
+            if mode == "Piped" and k == "Ref" and "DoT" in v:
+                attributes.append(v)
+
+            if isinstance(v, dict) or isinstance(v, list):
+                search_refs(v, attributes, mode)
+
+    elif isinstance(template, list):
+        for k in template:
+            if isinstance(k, dict) or isinstance(k, list):
+                search_refs(k, attributes, mode)
