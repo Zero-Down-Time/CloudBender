@@ -14,7 +14,7 @@ from .utils import dict_merge, search_refs
 from .connection import BotoConnection
 from .jinja import JinjaEnv, read_config_file
 from . import __version__
-from .exceptions import ParameterNotFound
+from .exceptions import ParameterNotFound, ParameterIllegalValue
 
 import cfnlint.core
 
@@ -56,13 +56,14 @@ class Stack(object):
         self.dependencies = set()
         self.default_lock = None
         self.multi_delete = True
+        self.onfailure = "DELETE"
 
     def dump_config(self):
         logger.debug("<Stack {}: {}>".format(self.id, vars(self)))
 
     def read_config(self):
         _config = read_config_file(self.path)
-        for p in ["region", "stackname", "template", "default_lock", "multi_delete", "provides"]:
+        for p in ["region", "stackname", "template", "default_lock", "multi_delete", "provides", "onfailure"]:
             if p in _config:
                 setattr(self, p, _config[p])
 
@@ -87,6 +88,10 @@ class Stack(object):
         if 'dependencies' in _config:
             for dep in _config['dependencies']:
                 self.dependencies.add(dep)
+
+        # Some sanity checks
+        if self.onfailure not in ["DO_NOTHING", "ROLLBACK", "DELETE"]:
+            raise ParameterIllegalValue("onfailure must be one of DO_NOTHING | ROLLBACK | DELETE")
 
         logger.debug("Stack {} added.".format(self.id))
 
@@ -339,6 +344,7 @@ class Stack(object):
             {'StackName': self.stackname,
                 'TemplateBody': self.cfn_template,
                 'Parameters': self.cfn_parameters,
+                'OnFailure': self.onfailure,
                 'Tags': [{"Key": str(k), "Value": str(v)} for k, v in self.tags.items()],
                 'Capabilities': ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM', 'CAPABILITY_AUTO_EXPAND']},
             profile=self.profile, region=self.region)
