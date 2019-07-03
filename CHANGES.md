@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.6.1
+- Add support for onfailure for create stack, defaults to DELETE
+
 ## 0.6.0
 - Implemented Piped mode again
   Allows all stack references to be supplied via injected parameters

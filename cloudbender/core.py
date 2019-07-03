@@ -25,7 +25,7 @@ class CloudBender(object):
             raise "Check '{0}' exists and is a valid project folder.".format(root_path)
 
     def read_config(self):
-        """Load the <path>/config.yaml, <path>/*.yaml as stacks, sub-folders are child groups """
+        """Load the <path>/config.yaml, <path>/*.yaml as stacks, sub-folders are sub-groups """
 
         # Read top level config.yaml and extract CloudBender CTX
         _config = read_config_file(os.path.join(self.ctx['config_path'], 'config.yaml'))
