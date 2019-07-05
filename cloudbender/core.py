@@ -21,7 +21,7 @@ class CloudBender(object):
             "artifact_paths": [os.path.join(self.root, "artifacts")]
         }
 
-        if not os.path.isdir(self.root):
+        if not os.path.isdir(self.ctx['config_path']):
             raise "Check '{0}' exists and is a valid project folder.".format(root_path)
 
     def read_config(self):

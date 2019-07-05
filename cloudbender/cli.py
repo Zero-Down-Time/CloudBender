@@ -20,8 +20,15 @@ logger = logging.getLogger(__name__)
 def cli(ctx, debug, directory):
     setup_logging(debug)
 
+    # Make sure our root is abs
+    if directory:
+        if not os.path.isabs(directory):
+            directory = os.path.normpath(os.path.join(os.getcwd(), directory))
+    else:
+        directory = os.getcwd()
+
     # Read global config
-    cb = CloudBender(directory if directory else os.getcwd())
+    cb = CloudBender(directory)
     cb.read_config()
     cb.dump_config()
 
