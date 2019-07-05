@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.6.2
+- Fixed custom root directory to allow automated template tests
+
 ## 0.6.1
 - Add support for onfailure for create stack, defaults to DELETE
 
