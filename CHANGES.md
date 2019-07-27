@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.0
+- Add support for SNS Notifcations to Cloudformation create and update operations
+- Refactored recursive handling of options withing stack groups
+
 ## 0.6.2
 - Fixed custom root directory to allow automated template tests
 

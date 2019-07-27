@@ -33,17 +33,23 @@ class StackStatus(object):
 
 
 class Stack(object):
-    def __init__(self, name, path, rel_path, tags=None, parameters=None, options=None, region='global', profile=None, template=None, ctx={}):
-        self.id = (profile, region, name)
+    def __init__(self, name, template, path, rel_path, sg_config={}, ctx={}):
         self.stackname = name
+        self.template = template
         self.path = path
         self.rel_path = rel_path
-        self.tags = tags
-        self.parameters = parameters
-        self.options = options
-        self.region = region
-        self.profile = profile
-        self.template = template
+        self.ctx = ctx
+
+        self.tags = sg_config.get('tags', {})
+        self.parameters = sg_config.get('parameters', {})
+        self.options = sg_config.get('options', {})
+        self.region = sg_config.get('region', 'global')
+        self.profile = sg_config.get('profile', '')
+        self.onfailure = sg_config.get('onfailure', "DELETE")
+        self.notfication_sns = sg_config.get('notification_sns', [])
+
+        self.id = (self.profile, self.region, self.stackname)
+
         self.md5 = None
         self.mode = 'CloudBender'
         self.provides = template
@@ -51,19 +57,17 @@ class Stack(object):
         self.cfn_parameters = []
         self.cfn_data = None
         self.connection_manager = BotoConnection(self.profile, self.region)
-        self.ctx = ctx
         self.status = None
         self.dependencies = set()
         self.default_lock = None
         self.multi_delete = True
-        self.onfailure = "DELETE"
 
     def dump_config(self):
         logger.debug("<Stack {}: {}>".format(self.id, vars(self)))
 
     def read_config(self):
         _config = read_config_file(self.path)
-        for p in ["region", "stackname", "template", "default_lock", "multi_delete", "provides", "onfailure"]:
+        for p in ["region", "stackname", "template", "default_lock", "multi_delete", "provides", "onfailure", "notification_sns"]:
             if p in _config:
                 setattr(self, p, _config[p])
 
@@ -345,6 +349,7 @@ class Stack(object):
                 'TemplateBody': self.cfn_template,
                 'Parameters': self.cfn_parameters,
                 'OnFailure': self.onfailure,
+                'NotificationARNs': self.notfication_sns,
                 'Tags': [{"Key": str(k), "Value": str(v)} for k, v in self.tags.items()],
                 'Capabilities': ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM', 'CAPABILITY_AUTO_EXPAND']},
             profile=self.profile, region=self.region)
@@ -366,6 +371,7 @@ class Stack(object):
                 {'StackName': self.stackname,
                     'TemplateBody': self.cfn_template,
                     'Parameters': self.cfn_parameters,
+                    'NotificationARNs': self.notfication_sns,
                     'Tags': [{"Key": str(k), "Value": str(v)} for k, v in self.tags.items()],
                     'Capabilities': ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM', 'CAPABILITY_AUTO_EXPAND']},
                 profile=self.profile, region=self.region)
