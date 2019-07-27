@@ -26,7 +26,7 @@ class StackGroup(object):
         for sg in self.sgs:
             sg.dump_config()
 
-        logger.debug("<StackGroup {}: {}>".format(self.name, vars(self)))
+        logger.debug("<StackGroup {}: {}>".format(self.name, self.config))
 
         for s in self.stacks:
             s.dump_config()
@@ -46,14 +46,9 @@ class StackGroup(object):
             self.name = os.path.split(self.path)[1]
 
         # Merge config with parent config
-        _config = dict_merge(parent_config, _config)
+        self.config = dict_merge(parent_config, _config)
 
-        tags = _config.get('tags', {})
-        parameters = _config.get('parameters', {})
-        options = _config.get('options', {})
-        region = _config.get('region', 'global')
-        profile = _config.get('profile', '')
-        stackname_prefix = _config.get('stacknameprefix', '')
+        stackname_prefix = self.config.get('stacknameprefix', '')
 
         logger.debug("StackGroup {} added.".format(self.name))
 
@@ -65,22 +60,16 @@ class StackGroup(object):
             if stackname_prefix:
                 stackname = stackname_prefix + stackname
 
-            new_stack = Stack(
-                name=stackname, template=template, path=stack_path, rel_path=str(self.rel_path),
-                tags=dict(tags), parameters=dict(parameters), options=dict(options),
-                region=str(region), profile=str(profile), ctx=self.ctx)
+            new_stack = Stack(name=stackname, template=template, path=stack_path, rel_path=str(self.rel_path), sg_config=self.config, ctx=self.ctx)
             new_stack.read_config()
             self.stacks.append(new_stack)
 
         # Create StackGroups recursively
         for sub_group in [f.path for f in os.scandir(self.path) if f.is_dir()]:
             sg = StackGroup(sub_group, self.ctx)
-            sg.read_config(_config)
+            sg.read_config(self.config)
 
             self.sgs.append(sg)
-
-        # Return raw, merged config to parent
-        return _config
 
     def get_stacks(self, name=None, recursive=True, match_by='name'):
         """ Returns [stack] matching stack_name or [all] """
