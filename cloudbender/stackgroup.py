@@ -1,6 +1,7 @@
 import os
 import glob
 import logging
+import pprint
 
 from .utils import dict_merge
 from .jinja import read_config_file
@@ -26,7 +27,7 @@ class StackGroup(object):
         for sg in self.sgs:
             sg.dump_config()
 
-        logger.debug("<StackGroup {}: {}>".format(self.name, self.config))
+        logger.debug("StackGroup {}: {}".format(self.rel_path, pprint.pformat(self.config)))
 
         for s in self.stacks:
             s.dump_config()
