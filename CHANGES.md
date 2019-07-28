@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.7.1
+- Release emergency bugfix, 0.7.0 broke recursive option parsing
+
 ## 0.7.0
 - Add support for SNS Notifcations to Cloudformation create and update operations
 - Refactored recursive handling of options withing stack groups

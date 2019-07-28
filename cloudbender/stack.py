@@ -4,6 +4,7 @@ import hashlib
 import oyaml as yaml
 import json
 import time
+import pprint
 
 from datetime import datetime, timedelta
 from dateutil.tz import tzutc
@@ -33,20 +34,31 @@ class StackStatus(object):
 
 
 class Stack(object):
-    def __init__(self, name, template, path, rel_path, sg_config={}, ctx={}):
+    def __init__(self, name, template, path, rel_path, sg_config, ctx):
         self.stackname = name
         self.template = template
         self.path = path
         self.rel_path = rel_path
         self.ctx = ctx
 
-        self.tags = sg_config.get('tags', {})
-        self.parameters = sg_config.get('parameters', {})
-        self.options = sg_config.get('options', {})
-        self.region = sg_config.get('region', 'global')
-        self.profile = sg_config.get('profile', '')
-        self.onfailure = sg_config.get('onfailure', "DELETE")
-        self.notfication_sns = sg_config.get('notification_sns', [])
+        self.tags = {}
+        self.parameters = {}
+        self.options = {}
+        self.region = 'global'
+        self.profile = ''
+        self.onfailure = 'DELETE'
+        self.notfication_sns = []
+
+        self.tags.update(sg_config.get('tags'))
+        self.parameters.update(sg_config.get('parameters'))
+        self.options.update(sg_config.get('options'))
+
+        if 'region' in sg_config:
+            self.region = sg_config['region']
+        if 'profile' in sg_config:
+            self.profile = sg_config['profile']
+        if 'notfication_sns' in sg_config:
+            self.notfication_sns = sg_config['notfication_sns']
 
         self.id = (self.profile, self.region, self.stackname)
 
@@ -63,7 +75,7 @@ class Stack(object):
         self.multi_delete = True
 
     def dump_config(self):
-        logger.debug("<Stack {}: {}>".format(self.id, vars(self)))
+        logger.debug("<Stack {}: {}>".format(self.id, pprint.pformat(vars(self))))
 
     def read_config(self):
         _config = read_config_file(self.path)
