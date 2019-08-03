@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.2
+- Add line numbers to easy debugging
+- Fix tests
+
 ## 0.7.1
 - Release emergency bugfix, 0.7.0 broke recursive option parsing
 
