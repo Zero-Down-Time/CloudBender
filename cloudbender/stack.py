@@ -49,9 +49,9 @@ class Stack(object):
         self.onfailure = 'DELETE'
         self.notfication_sns = []
 
-        self.tags.update(sg_config.get('tags'))
-        self.parameters.update(sg_config.get('parameters'))
-        self.options.update(sg_config.get('options'))
+        self.tags.update(sg_config.get('tags', {}))
+        self.parameters.update(sg_config.get('parameters', {}))
+        self.options.update(sg_config.get('options', {}))
 
         if 'region' in sg_config:
             self.region = sg_config['region']
@@ -134,7 +134,10 @@ class Stack(object):
         except Exception as e:
             # In case we rendered invalid yaml this helps to debug
             if self.cfn_template:
-                logger.error(self.cfn_template)
+                _output = ""
+                for i, line in enumerate(self.cfn_template.splitlines(), start=1):
+                    _output = _output + '{}: {}\n'.format(i, line)
+                logger.error(_output)
             raise e
 
         if not re.search('CloudBender::', self.cfn_template):
