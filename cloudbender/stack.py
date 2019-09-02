@@ -34,7 +34,7 @@ class StackStatus(object):
 
 
 class Stack(object):
-    def __init__(self, name, template, path, rel_path, sg_config, ctx):
+    def __init__(self, name, template, path, rel_path, ctx):
         self.stackname = name
         self.template = template
         self.path = path
@@ -43,22 +43,11 @@ class Stack(object):
 
         self.tags = {}
         self.parameters = {}
-        self.options = {}
+        self.options = {'Legacy': False}
         self.region = 'global'
         self.profile = ''
         self.onfailure = 'DELETE'
         self.notfication_sns = []
-
-        self.tags.update(sg_config.get('tags', {}))
-        self.parameters.update(sg_config.get('parameters', {}))
-        self.options.update(sg_config.get('options', {}))
-
-        if 'region' in sg_config:
-            self.region = sg_config['region']
-        if 'profile' in sg_config:
-            self.profile = sg_config['profile']
-        if 'notfication_sns' in sg_config:
-            self.notfication_sns = sg_config['notfication_sns']
 
         self.id = (self.profile, self.region, self.stackname)
 
@@ -77,8 +66,22 @@ class Stack(object):
     def dump_config(self):
         logger.debug("<Stack {}: {}>".format(self.id, pprint.pformat(vars(self))))
 
-    def read_config(self):
-        _config = read_config_file(self.path)
+    def read_config(self, sg_config={}):
+        """ reads stack config """
+
+        # First set various attributes based on parent stackgroup config
+        self.tags.update(sg_config.get('tags', {}))
+        self.parameters.update(sg_config.get('parameters', {}))
+        self.options.update(sg_config.get('options', {}))
+
+        if 'region' in sg_config:
+            self.region = sg_config['region']
+        if 'profile' in sg_config:
+            self.profile = sg_config['profile']
+        if 'notfication_sns' in sg_config:
+            self.notfication_sns = sg_config['notfication_sns']
+
+        _config = read_config_file(self.path, sg_config.get('variables', {}))
         for p in ["region", "stackname", "template", "default_lock", "multi_delete", "provides", "onfailure", "notification_sns"]:
             if p in _config:
                 setattr(self, p, _config[p])
@@ -93,6 +96,7 @@ class Stack(object):
 
         # backwards comp
         if 'vars' in _config:
+            logger.warn("vars: in config is deprecated, please use options: instead")
             self.options = dict_merge(self.options, _config['vars'])
 
         if 'options' in _config:
@@ -154,7 +158,7 @@ class Stack(object):
         # Add Legacy FortyTwo resource to prevent AWS from replacing existing resources for NO reason ;-(
         include = []
         search_refs(self.cfn_data, include, self.mode)
-        if self.mode != "Piped" and len(include) and 'Legacy' in self.options:
+        if self.mode != "Piped" and len(include) and self.options['Legacy']:
             _res = """
   FortyTwo:
     Type: Custom::FortyTwo

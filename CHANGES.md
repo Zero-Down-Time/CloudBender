@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.3
+- Added support for variables within config files, incl. usual inheritance
+- Set Legacy to False by default, requires templates to check for False explicitly, allows to enabled/disable per stack
+
 ## 0.7.2
 - Add line numbers to easy debugging
 - Fix tests

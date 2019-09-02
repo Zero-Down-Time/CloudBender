@@ -10,7 +10,7 @@ test:
 	TEST=True pytest --log-cli-level=DEBUG
 
 clean:
-	rm -rf .cache .coverage .eggs cloudbender.egg-info .pytest_cache dist
+	rm -rf .cache build .coverage .eggs cloudbender.egg-info .pytest_cache dist
 
 build: $(PACKAGE_FILE)
 
