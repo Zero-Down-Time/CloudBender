@@ -144,7 +144,7 @@ class Stack(object):
                 logger.error(_output)
             raise e
 
-        if not re.search('CloudBender::', self.cfn_template):
+        if not re.search('CloudBender::', self.cfn_template) and not re.search('Iterate:', self.cfn_template):
             logger.info("CloudBender not required -> removing Transform and Conglomerate parameter")
             self.cfn_template = self.cfn_template.replace('Transform: [CloudBender]', '')
 
