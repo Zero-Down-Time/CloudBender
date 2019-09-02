@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.7.4
+- Fix for only Iterate in use
+
 ## 0.7.3
 - Added support for variables within config files, incl. usual inheritance
 - Set Legacy to False by default, requires templates to check for False explicitly, allows to enabled/disable per stack
