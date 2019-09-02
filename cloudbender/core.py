@@ -56,11 +56,6 @@ class CloudBender(object):
 
         self.all_stacks = self.sg.get_stacks()
 
-        # If cfn vars config is completely empty set some default for tests to work
-        # if "vars" not in _config:
-        #     _config = { "vars": { 'Azs': {'TestAZ': 'Next'}, 'Segments': {'Testnet': 'internet'}, "Mode": "Piped" } }
-        #     self.vars.update(_config.get('vars'))
-
     def dump_config(self):
         logger.debug("<CloudBender: {}>".format(vars(self)))
         self.sg.dump_config()

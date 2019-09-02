@@ -33,12 +33,11 @@ class StackGroup(object):
             s.dump_config()
 
     def read_config(self, parent_config={}):
-
         if not os.path.isdir(self.path):
             return None
 
         # First read config.yaml if present
-        _config = read_config_file(os.path.join(self.path, 'config.yaml'))
+        _config = read_config_file(os.path.join(self.path, 'config.yaml'), parent_config.get('variables', {}))
 
         # Stack Group name if not explicit via config is derived from subfolder, or in case of root object the parent folder
         if "stackgroupname" in _config:
@@ -48,7 +47,6 @@ class StackGroup(object):
 
         # Merge config with parent config
         self.config = dict_merge(parent_config, _config)
-
         stackname_prefix = self.config.get('stacknameprefix', '')
 
         logger.debug("StackGroup {} added.".format(self.name))
@@ -61,8 +59,8 @@ class StackGroup(object):
             if stackname_prefix:
                 stackname = stackname_prefix + stackname
 
-            new_stack = Stack(name=stackname, template=template, path=stack_path, rel_path=str(self.rel_path), sg_config=self.config, ctx=self.ctx)
-            new_stack.read_config()
+            new_stack = Stack(name=stackname, template=template, path=stack_path, rel_path=str(self.rel_path), ctx=self.ctx)
+            new_stack.read_config(self.config)
             self.stacks.append(new_stack)
 
         # Create StackGroups recursively

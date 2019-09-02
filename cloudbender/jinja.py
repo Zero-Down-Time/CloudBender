@@ -4,6 +4,7 @@ import gzip
 import re
 import base64
 import yaml
+import copy
 
 import jinja2
 from jinja2.utils import missing, object_type_repr
@@ -184,8 +185,14 @@ def JinjaEnv(template_locations=[]):
     return jenv
 
 
-def read_config_file(path, jinja_args=None):
-    """ reads yaml config file, passes it through jinja and returns data structre """
+def read_config_file(path, variables={}):
+    """ reads yaml config file, passes it through jinja and returns data structre
+
+        - OS ENV are available as {{ ENV.<VAR> }}
+        - variables defined in parent configs are available as {{ <VAR> }}
+    """
+    jinja_variables = copy.deepcopy(variables)
+    jinja_variables['ENV'] = os.environ
 
     if os.path.exists(path):
         logger.debug("Reading config file: {}".format(path))
@@ -195,9 +202,7 @@ def read_config_file(path, jinja_args=None):
                 undefined=jinja2.StrictUndefined,
                 extensions=['jinja2.ext.loopcontrols'])
             template = jenv.get_template(os.path.basename(path))
-            rendered_template = template.render(
-                env=os.environ
-            )
+            rendered_template = template.render(jinja_variables)
             data = yaml.safe_load(rendered_template)
             if data:
                 return data
