@@ -2,7 +2,7 @@ import logging
 
 __author__ = "Stefan Reimer"
 __email__ = "stefan@zero-downtimet.net"
-__version__ = "0.7.4"
+__version__ = "0.7.5"
 
 
 # Set up logging to ``/dev/null`` like a library is supposed to.

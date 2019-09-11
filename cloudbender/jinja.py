@@ -46,13 +46,23 @@ def option(context, attribute, default_value=u'', source='options'):
 
 
 @jinja2.contextfunction
-def include_raw_gz(context, files=None, gz=True):
+def include_raw_gz(context, files=None, gz=True, remove_comments=False):
     jenv = context.environment
     output = ''
     for name in files:
         output = output + jinja2.Markup(jenv.loader.get_source(jenv, name)[0])
 
-    # logger.debug(output)
+    if remove_comments:
+        # Remove full line comments but not shebang
+        _re = re.compile(r'^\s*#[^!]')
+        stripped_output = ''
+        for curline in output.splitlines():
+            if re.match(_re, curline):
+                logger.debug("Removed {}".format(curline))
+            else:
+                stripped_output = stripped_output + curline
+
+        output = stripped_output
 
     if not gz:
         return(output)
