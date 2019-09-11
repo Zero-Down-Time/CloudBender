@@ -227,6 +227,8 @@ class Stack(object):
             with open(yaml_file, 'w') as yaml_contents:
                 yaml_contents.write(self.cfn_template)
                 logger.info('Wrote %s to %s', self.template, yaml_file)
+                if len(self.cfn_template) > 51200:
+                    logger.warning("Rendered template exceeds maximum allowed size of 51200, actual size: {} !".format(len(self.cfn_template)))
 
         else:
             logger.error('No cfn template rendered yet for stack {}.'.format(self.stackname))
