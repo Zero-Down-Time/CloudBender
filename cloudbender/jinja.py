@@ -60,7 +60,7 @@ def include_raw_gz(context, files=None, gz=True, remove_comments=False):
             if re.match(_re, curline):
                 logger.debug("Removed {}".format(curline))
             else:
-                stripped_output = stripped_output + curline
+                stripped_output = stripped_output + curline + '\n'
 
         output = stripped_output
 
