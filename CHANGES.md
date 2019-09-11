@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.5
+- Added warning if rendered templates exceed max. inline size of 51200 bytes
+- Added optional removal of comments during include_raw processing to reduce user-data size
+
 ## 0.7.4
 - Fix for only Iterate in use
 
