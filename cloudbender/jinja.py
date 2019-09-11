@@ -62,6 +62,8 @@ def include_raw_gz(context, files=None, gz=True):
     f.write(output.encode())
     f.close()
 
+    # MaxSize is 21847
+    logger.info("Compressed user-data from {} to {}".format(len(output), len(buf.getvalue())))
     return base64.b64encode(buf.getvalue()).decode('utf-8')
 
 
