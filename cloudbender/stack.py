@@ -270,7 +270,7 @@ class Stack(object):
 
         # Ignore checks regarding overloaded properties
         if self.mode == "CloudBender":
-            ignore_checks = ignore_checks + ['E3035', 'E3002', 'E3012', 'W2001', 'E3001']
+            ignore_checks = ignore_checks + ['E3035', 'E3002', 'E3012', 'W2001', 'E3001', 'E0002', 'E1012']
 
         filename = os.path.join(self.ctx['template_path'], self.rel_path, self.stackname + ".yaml")
         logger.info('Validating {0}'.format(filename))

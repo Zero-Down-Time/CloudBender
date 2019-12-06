@@ -4,3 +4,7 @@ class ParameterNotFound(Exception):
 
 class ParameterIllegalValue(Exception):
     """My documentation"""
+
+
+class InvalidProjectDir(BaseException):
+    """My documentation"""

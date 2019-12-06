@@ -4,6 +4,7 @@ import logging
 from .utils import ensure_dir
 from .stackgroup import StackGroup
 from .jinja import read_config_file
+from .exceptions import InvalidProjectDir
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +23,7 @@ class CloudBender(object):
         }
 
         if not os.path.isdir(self.ctx['config_path']):
-            raise "Check '{0}' exists and is a valid project folder.".format(root_path)
+            raise InvalidProjectDir("Check '{0}' exists and is a valid CloudBender project folder.".format(root_path))
 
     def read_config(self):
         """Load the <path>/config.yaml, <path>/*.yaml as stacks, sub-folders are sub-groups """
