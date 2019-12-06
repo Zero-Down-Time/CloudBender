@@ -1,4 +1,5 @@
 import os
+import sys
 import click
 import functools
 
@@ -7,6 +8,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from . import __version__
 from .core import CloudBender
 from .utils import setup_logging
+from .exceptions import InvalidProjectDir
 
 import logging
 logger = logging.getLogger(__name__)
@@ -24,11 +26,18 @@ def cli(ctx, debug, directory):
     if directory:
         if not os.path.isabs(directory):
             directory = os.path.normpath(os.path.join(os.getcwd(), directory))
+    elif os.getenv('CLOUDBENDER_PROJECT_ROOT'):
+        directory = os.getenv('CLOUDBENDER_PROJECT_ROOT')
     else:
         directory = os.getcwd()
 
     # Read global config
-    cb = CloudBender(directory)
+    try:
+        cb = CloudBender(directory)
+    except InvalidProjectDir as e:
+        print(e)
+        sys.exit(1)
+
     cb.read_config()
     cb.dump_config()
 
