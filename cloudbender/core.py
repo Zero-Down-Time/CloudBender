@@ -1,4 +1,4 @@
-import os
+import pathlib
 import logging
 
 from .utils import ensure_dir
@@ -12,24 +12,24 @@ logger = logging.getLogger(__name__)
 class CloudBender(object):
     """ Config Class to handle recursive conf/* config tree """
     def __init__(self, root_path):
-        self.root = root_path
+        self.root = pathlib.Path(root_path)
         self.sg = None
         self.all_stacks = []
         self.ctx = {
-            "config_path": os.path.join(self.root, "config"),
-            "template_path": os.path.join(self.root, "cloudformation"),
-            "parameter_path": os.path.join(self.root, "parameters"),
-            "artifact_paths": [os.path.join(self.root, "artifacts")]
+            "config_path": self.root.joinpath("config"),
+            "template_path": self.root.joinpath("cloudformation"),
+            "parameter_path": self.root.joinpath("parameters"),
+            "artifact_paths": [self.root.joinpath("artifacts")]
         }
 
-        if not os.path.isdir(self.ctx['config_path']):
-            raise InvalidProjectDir("Check '{0}' exists and is a valid CloudBender project folder.".format(root_path))
+        if not self.ctx['config_path'].is_dir():
+            raise InvalidProjectDir("Check '{0}' exists and is a valid CloudBender project folder.".format(self.ctx['config_path']))
 
     def read_config(self):
         """Load the <path>/config.yaml, <path>/*.yaml as stacks, sub-folders are sub-groups """
 
         # Read top level config.yaml and extract CloudBender CTX
-        _config = read_config_file(os.path.join(self.ctx['config_path'], 'config.yaml'))
+        _config = read_config_file(self.ctx['config_path'].joinpath('config.yaml'))
         if _config and _config.get('CloudBender'):
             self.ctx.update(_config.get('CloudBender'))
 
@@ -38,16 +38,17 @@ class CloudBender(object):
             if k in ['config_path', 'template_path', 'parameter_path', 'artifact_paths']:
                 if isinstance(v, list):
                     new_list = []
-                    for path in v:
-                        if not os.path.isabs(path):
-                            new_list.append(os.path.normpath(os.path.join(self.root, path)))
+                    for p in v:
+                        path = pathlib.Path(p)
+                        if not path.is_absolute():
+                            new_list.append(self.root.joinpath(path))
                         else:
                             new_list.append(path)
                     self.ctx[k] = new_list
 
                 elif isinstance(v, str):
-                    if not os.path.isabs(v):
-                        self.ctx[k] = os.path.normpath(os.path.join(self.root, v))
+                    if not v.is_absolute():
+                        self.ctx[k] = self.root.joinpath(v)
 
             if k in ['template_path', 'parameter_path']:
                 ensure_dir(self.ctx[k])

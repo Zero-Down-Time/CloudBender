@@ -6,5 +6,5 @@ class ParameterIllegalValue(Exception):
     """My documentation"""
 
 
-class InvalidProjectDir(BaseException):
+class InvalidProjectDir(Exception):
     """My documentation"""

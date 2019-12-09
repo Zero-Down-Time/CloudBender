@@ -1,5 +1,3 @@
-import os
-import glob
 import logging
 import pprint
 
@@ -15,7 +13,7 @@ class StackGroup(object):
         self.name = None
         self.ctx = ctx
         self.path = path
-        self.rel_path = os.path.relpath(path, ctx['config_path'])
+        self.rel_path = path.relative_to(ctx['config_path'])
         self.config = {}
         self.sgs = []
         self.stacks = []
@@ -33,17 +31,17 @@ class StackGroup(object):
             s.dump_config()
 
     def read_config(self, parent_config={}):
-        if not os.path.isdir(self.path):
+        if not self.path.is_dir():
             return None
 
         # First read config.yaml if present
-        _config = read_config_file(os.path.join(self.path, 'config.yaml'), parent_config.get('variables', {}))
+        _config = read_config_file(self.path.joinpath('config.yaml'), parent_config.get('variables', {}))
 
         # Stack Group name if not explicit via config is derived from subfolder, or in case of root object the parent folder
         if "stackgroupname" in _config:
             self.name = _config["stackgroupname"]
         elif not self.name:
-            self.name = os.path.split(self.path)[1]
+            self.name = self.path.stem
 
         # Merge config with parent config
         self.config = dict_merge(parent_config, _config)
@@ -52,9 +50,9 @@ class StackGroup(object):
         logger.debug("StackGroup {} added.".format(self.name))
 
         # Add stacks
-        stacks = [s for s in glob.glob(os.path.join(self.path, '*.yaml')) if not s.endswith("config.yaml")]
+        stacks = [s for s in self.path.glob('*.yaml') if not s.name == "config.yaml"]
         for stack_path in stacks:
-            stackname = os.path.basename(stack_path).split('.')[0]
+            stackname = stack_path.name.split('.')[0]
             template = stackname
             if stackname_prefix:
                 stackname = stackname_prefix + stackname
@@ -64,7 +62,7 @@ class StackGroup(object):
             self.stacks.append(new_stack)
 
         # Create StackGroups recursively
-        for sub_group in [f.path for f in os.scandir(self.path) if f.is_dir()]:
+        for sub_group in [s for s in self.path.iterdir() if s.is_dir()]:
             sg = StackGroup(sub_group, self.ctx)
             sg.read_config(self.config)
 
@@ -77,12 +75,18 @@ class StackGroup(object):
             logger.debug("Looking for stack {} in group {}".format(name, self.name))
 
         for s in self.stacks:
-            if not name or (s.stackname == name and match_by == 'name') or (s.path.endswith(name) and match_by == 'path'):
-                if self.rel_path:
-                    logger.debug("Found stack {} in group {}".format(s.stackname, self.rel_path))
-                else:
-                    logger.debug("Found stack {}".format(s.stackname))
-                stacks.append(s)
+            if name:
+                if match_by == 'name' and s.stackname != name:
+                    continue
+
+                if match_by == 'path' and not s.path.match(name):
+                    continue
+
+            if self.rel_path:
+                logger.debug("Found stack {} in group {}".format(s.stackname, self.rel_path))
+            else:
+                logger.debug("Found stack {}".format(s.stackname))
+            stacks.append(s)
 
         if recursive:
             for sg in self.sgs:
@@ -94,11 +98,11 @@ class StackGroup(object):
 
     def get_stackgroup(self, name=None, recursive=True, match_by='name'):
         """ Returns stack group matching stackgroup_name or all if None """
-        if not name or (self.name == name and match_by == 'name') or (self.path.endswith(name) and match_by == 'path'):
+        if not name or (self.name == name and match_by == 'name') or (self.path.match(name) and match_by == 'path'):
             logger.debug("Found stack_group {}".format(self.name))
             return self
 
-        if name and name != 'config':
+        if name and self.name != 'config':
             logger.debug("Looking for stack_group {} in group {}".format(name, self.name))
 
         if recursive:
