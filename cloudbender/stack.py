@@ -4,6 +4,7 @@ import hashlib
 import oyaml as yaml
 import json
 import time
+import pathlib
 import pprint
 
 from datetime import datetime, timedelta
@@ -37,7 +38,7 @@ class Stack(object):
     def __init__(self, name, template, path, rel_path, ctx):
         self.stackname = name
         self.template = template
-        self.path = path
+        self.path = pathlib.Path(path)
         self.rel_path = rel_path
         self.ctx = ctx
 

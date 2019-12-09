@@ -179,7 +179,7 @@ def JinjaEnv(template_locations=[]):
 
     jinja_loaders = []
     for _dir in template_locations:
-        jinja_loaders.append(jinja2.FileSystemLoader(_dir))
+        jinja_loaders.append(jinja2.FileSystemLoader(str(_dir)))
     jenv.loader = jinja2.ChoiceLoader(jinja_loaders)
 
     jenv.globals['include_raw'] = include_raw_gz
@@ -206,14 +206,14 @@ def read_config_file(path, variables={}):
     jinja_variables = copy.deepcopy(variables)
     jinja_variables['ENV'] = os.environ
 
-    if os.path.exists(path):
+    if path.exists():
         logger.debug("Reading config file: {}".format(path))
         try:
             jenv = jinja2.Environment(
-                loader=jinja2.FileSystemLoader(os.path.dirname(path)),
+                loader=jinja2.FileSystemLoader(str(path.parent)),
                 undefined=jinja2.StrictUndefined,
                 extensions=['jinja2.ext.loopcontrols'])
-            template = jenv.get_template(os.path.basename(path))
+            template = jenv.get_template(path.name)
             rendered_template = template.render(jinja_variables)
             data = yaml.safe_load(rendered_template)
             if data:
