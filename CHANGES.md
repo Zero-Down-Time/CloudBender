@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.7.8
+- Add new function `outputs`, to query already deployed stack for their outputs
+
 ## 0.7.7
 - Add support for CLOUDBENDER_PROJECT_ROOT env variable to specify your root project 
 - Switch most os.path operations to pathlib to fix various corner cases caused by string matching

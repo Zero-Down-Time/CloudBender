@@ -292,6 +292,30 @@ class Stack(object):
         else:
             logger.info("Passed.")
 
+    def get_outputs(self, include='.*', values=False):
+        """ Returns outputs of the stack as key=value """
+
+        try:
+            stacks = self.connection_manager.call(
+                "cloudformation",
+                "describe_stacks",
+                {'StackName': self.stackname},
+                profile=self.profile, region=self.region)['Stacks']
+
+            try:
+                logger.debug("Stack outputs for {} in {}:".format(self.stackname, self.region))
+                for output in stacks[0]['Outputs']:
+                    if re.search(include, output['OutputKey']):
+                        if values:
+                            print("{}".format(output['OutputValue']))
+                        else:
+                            print("{}={}".format(output['OutputKey'], output['OutputValue']))
+            except KeyError:
+                pass
+
+        except ClientError as e:
+            raise e
+
     def resolve_parameters(self):
         """ Renders parameters for the stack based on the source template and the environment configuration """
 
