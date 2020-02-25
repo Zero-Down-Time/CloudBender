@@ -81,6 +81,20 @@ def validate(cb, stack_names, multi):
 
 
 @click.command()
+@click.argument("stack_names", nargs=-1)
+@click.option("--multi", is_flag=True, help="Allow more than one stack to match")
+@click.option("--include", default='.*', help="regex matching wanted outputs, default '.*'")
+@click.option("--values", is_flag=True, help="Only output values, most useful if only one outputs is returned")
+@click.pass_obj
+def outputs(cb, stack_names, multi, include, values):
+    """ Prints all stack outputs """
+
+    stacks = _find_stacks(cb, stack_names, multi)
+    for s in stacks:
+        s.get_outputs(include, values)
+
+
+@click.command()
 @click.argument("stack_name")
 @click.argument("change_set_name")
 @click.pass_obj
@@ -225,6 +239,7 @@ cli.add_command(provision)
 cli.add_command(delete)
 cli.add_command(clean)
 cli.add_command(create_change_set)
+cli.add_command(outputs)
 
 if __name__ == '__main__':
     cli(obj={})
