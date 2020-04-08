@@ -349,6 +349,11 @@ class Stack(object):
                 if p in self.parameters:
                     value = str(self.parameters[p])
                     self.cfn_parameters.append({'ParameterKey': p, 'ParameterValue': value})
+
+                    # Hide NoEcho parameters in shell output
+                    if 'NoEcho' in self.cfn_data['Parameters'][p] and self.cfn_data['Parameters'][p]['NoEcho']:
+                        value = '****'
+
                     logger.info('{} {} Parameter {}={}'.format(self.region, self.stackname, p, value))
                 else:
                     # If we have a Default defined in the CFN skip, as AWS will use it
@@ -385,7 +390,7 @@ class Stack(object):
 
         # Prepare parameters
         self.resolve_parameters()
-        self.write_parameter_file()
+        # self.write_parameter_file()
         self.read_template_file()
 
         logger.info('Creating {0} {1}'.format(self.region, self.stackname))
@@ -407,7 +412,7 @@ class Stack(object):
 
         # Prepare parameters
         self.resolve_parameters()
-        self.write_parameter_file()
+        # self.write_parameter_file()
         self.read_template_file()
 
         logger.info('Updating {0} {1}'.format(self.region, self.stackname))
@@ -446,7 +451,7 @@ class Stack(object):
 
         # Prepare parameters
         self.resolve_parameters()
-        self.write_parameter_file()
+        # self.write_parameter_file()
         self.read_template_file()
 
         logger.info('Creating change set {0} for stack {1}'.format(change_set_name, self.stackname))

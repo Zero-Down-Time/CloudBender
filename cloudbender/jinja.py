@@ -5,6 +5,8 @@ import re
 import base64
 import yaml
 import copy
+import subprocess
+import sys
 
 import jinja2
 from jinja2.utils import missing, object_type_repr
@@ -208,12 +210,16 @@ def read_config_file(path, variables={}):
 
     if path.exists():
         logger.debug("Reading config file: {}".format(path))
+
+        # First check for sops being present
         try:
             jenv = jinja2.Environment(
-                loader=jinja2.FileSystemLoader(str(path.parent)),
+                enable_async=True,
+                auto_reload=False,
+                loader=jinja2.FunctionLoader(_sops_loader),
                 undefined=jinja2.StrictUndefined,
                 extensions=['jinja2.ext.loopcontrols'])
-            template = jenv.get_template(path.name)
+            template = jenv.get_template(str(path))
             rendered_template = template.render(jinja_variables)
             data = yaml.safe_load(rendered_template)
             if data:
@@ -221,5 +227,31 @@ def read_config_file(path, variables={}):
 
         except Exception as e:
             logger.exception("Error reading config file: {} ({})".format(path, e))
+            sys.exit(1)
 
     return {}
+
+
+def _sops_loader(path):
+    """ Tries to loads yaml file
+        If "sops" key is detected the file is piped through sops before returned
+    """
+    with open(path, 'r') as f:
+        config_raw = f.read()
+        data = yaml.safe_load(config_raw)
+
+        if 'sops' in data:
+            try:
+                result = subprocess.run([
+                    'sops',
+                    '--input-type', 'yaml',
+                    '--output-type', 'yaml',
+                    '--decrypt', '/dev/stdin'
+                ], stdout=subprocess.PIPE, input=config_raw.encode('utf-8'))
+            except FileNotFoundError:
+                logger.exception("SOPS encrypted config {},  but unable to find sops binary! Try eg: https://github.com/mozilla/sops/releases/download/v3.5.0/sops-v3.5.0.linux".format(path))
+                sys.exit(1)
+
+            return result.stdout.decode('utf-8')
+        else:
+            return config_raw
