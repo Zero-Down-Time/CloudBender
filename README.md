@@ -32,3 +32,11 @@ Commands:
   sync               Renders template and provisions it right away
   validate           Validates already rendered templates using cfn-lint
 ```
+
+# Secrets
+
+CloudBender supports Mozilla's [SOPS](https://github.com/mozilla/sops) to encrypt values in any config yaml file since version 0.8.  
+
+
+If a sops encrypted config file is detected CloudBender will automatically try to decrypt the file during execution.  
+All required information to decrypt has to be present in the embedded sops config or set ahead of time via sops supported ENVIRONMENT variables.

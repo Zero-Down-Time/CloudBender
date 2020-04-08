@@ -1,10 +1,16 @@
 # Changelog
 
+## 0.8.0
+- Added support for sops encrypted config files, see: https://github.com/mozilla/sops
+- hide stack parameter output in terminal if `NoEcho` is set
+- *CloudBender no longer writes stack parameter files to prevent leaking secret values !*  
+  These files were never actually used anyways and there sole purpose was to track changes via git.
+
 ## 0.7.8
 - Add new function `outputs`, to query already deployed stack for their outputs
 
 ## 0.7.7
-- Add support for CLOUDBENDER_PROJECT_ROOT env variable to specify your root project 
+- Add support for CLOUDBENDER_PROJECT_ROOT env variable to specify your root project
 - Switch most os.path operations to pathlib to fix various corner cases caused by string matching
 
 ## 0.7.6
