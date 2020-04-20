@@ -247,7 +247,8 @@ def _sops_loader(path):
                     '--input-type', 'yaml',
                     '--output-type', 'yaml',
                     '--decrypt', '/dev/stdin'
-                ], stdout=subprocess.PIPE, input=config_raw.encode('utf-8'))
+                ], stdout=subprocess.PIPE, input=config_raw.encode('utf-8'),
+                    env=dict(os.environ, **{"AWS_SDK_LOAD_CONFIG": "1"}))
             except FileNotFoundError:
                 logger.exception("SOPS encrypted config {},  but unable to find sops binary! Try eg: https://github.com/mozilla/sops/releases/download/v3.5.0/sops-v3.5.0.linux".format(path))
                 sys.exit(1)
