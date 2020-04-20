@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.8.1
+- Work around for bug in Go AWS SDK to pick up cli credentials, see https://github.com/aws/aws-sdk-go/issues/934
+
 ## 0.8.0
 - Added support for sops encrypted config files, see: https://github.com/mozilla/sops
 - hide stack parameter output in terminal if `NoEcho` is set
