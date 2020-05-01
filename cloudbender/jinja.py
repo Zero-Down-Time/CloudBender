@@ -240,7 +240,7 @@ def _sops_loader(path):
         config_raw = f.read()
         data = yaml.safe_load(config_raw)
 
-        if 'sops' in data:
+        if data and 'sops' in data:
             try:
                 result = subprocess.run([
                     'sops',

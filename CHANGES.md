@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.8.2
+- Bug fix release to allow empty stack configs again
+
 ## 0.8.1
 - Work around for bug in Go AWS SDK to pick up cli credentials, see https://github.com/aws/aws-sdk-go/issues/934
 
