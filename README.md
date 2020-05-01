@@ -1,5 +1,3 @@
-[![Build Status](https://drone.zero-downtime.net/api/badges/ZeroDownTime/CloudBender/status.svg)](https://drone.zero-downtime.net/ZeroDownTime/CloudBender)
-
 # CloudBender ![Logo](cloudbender.png)
 
 # About
@@ -35,7 +33,7 @@ Commands:
 
 # Secrets
 
-CloudBender supports Mozilla's [SOPS](https://github.com/mozilla/sops) to encrypt values in any config yaml file since version 0.8.  
+CloudBender supports Mozilla's [SOPS](https://github.com/mozilla/sops) to encrypt values in any config yaml file since version 0.8.1  
 
 
 If a sops encrypted config file is detected CloudBender will automatically try to decrypt the file during execution.  
