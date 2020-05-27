@@ -1,4 +1,4 @@
-# CloudBender ![Logo](cloudbender.png)
+# ![Logo](cloudbender.png) CloudBender
 
 # About
 
