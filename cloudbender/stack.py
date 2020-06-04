@@ -336,7 +336,7 @@ class Stack(object):
 {% endfor %}
 {% endif %}
 
-{% if dependencies %}
+{% if parameters %}
 ## Parameters
 | Parameter | Type | Default | Format | Description |
 |-----------|------|---------|--------|-------------|
