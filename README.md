@@ -24,7 +24,9 @@ Options:
 Commands:
   clean              Deletes all previously rendered files locally
   create-change-set  Creates a change set for an existing stack
+  create-docs        Parses all documentation fragments out of rendered...
   delete             Deletes stacks or stack groups
+  outputs            Prints all stack outputs
   provision          Creates or updates stacks or stack groups
   render             Renders template and its parameters
   sync               Renders template and provisions it right away
