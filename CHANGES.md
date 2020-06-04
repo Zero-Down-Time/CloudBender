@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.8.3
+## 0.8.4
 - New Feature: `create-docs` command
   Renders a markdown documentation next to the rendered stack templated by parsing parameters and other relvant metadata
 
