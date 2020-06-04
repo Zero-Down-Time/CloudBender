@@ -95,6 +95,18 @@ def outputs(cb, stack_names, multi, include, values):
 
 
 @click.command()
+@click.argument("stack_names", nargs=-1)
+@click.option("--multi", is_flag=True, help="Allow more than one stack to match")
+@click.pass_obj
+def create_docs(cb, stack_names, multi):
+    """ Parses all documentation fragments out of rendered templates creating docs/*.md file """
+
+    stacks = _find_stacks(cb, stack_names, multi)
+    for s in stacks:
+        s.create_docs()
+
+
+@click.command()
 @click.argument("stack_name")
 @click.argument("change_set_name")
 @click.pass_obj
@@ -240,6 +252,7 @@ cli.add_command(delete)
 cli.add_command(clean)
 cli.add_command(create_change_set)
 cli.add_command(outputs)
+cli.add_command(create_docs)
 
 if __name__ == '__main__':
     cli(obj={})

@@ -179,10 +179,14 @@ def JinjaEnv(template_locations=[]):
                               extensions=['jinja2.ext.loopcontrols', 'jinja2.ext.do'])
 #                              undefined=SilentUndefined,
 
-    jinja_loaders = []
-    for _dir in template_locations:
-        jinja_loaders.append(jinja2.FileSystemLoader(str(_dir)))
-    jenv.loader = jinja2.ChoiceLoader(jinja_loaders)
+    if template_locations:
+        jinja_loaders = []
+        for _dir in template_locations:
+            jinja_loaders.append(jinja2.FileSystemLoader(str(_dir)))
+        jenv.loader = jinja2.ChoiceLoader(jinja_loaders)
+
+    else:
+        jenv.loader = jinja2.BaseLoader()
 
     jenv.globals['include_raw'] = include_raw_gz
     jenv.globals['raise'] = raise_helper
