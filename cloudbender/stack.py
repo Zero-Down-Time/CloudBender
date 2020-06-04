@@ -316,6 +316,53 @@ class Stack(object):
         except ClientError as e:
             raise e
 
+    def create_docs(self):
+        """ Read template, parse documentation fragments, eg. parameter description
+            and create a mardown doc file for the stack
+            same idea as eg. helm-docs for values.yaml
+         """
+
+        self.read_template_file()
+
+        doc_template = """
+{{ name }}
+===
+{{ description }}
+
+{% if dependencies %}
+## Dependencies
+{% for d in dependencies|sort %}
+- {{ d }}
+{% endfor %}
+{% endif %}
+
+{% if dependencies %}
+## Parameters
+| Parameter | Type | Default | Format | Description |
+|-----------|------|---------|--------|-------------|
+{% for p in parameters.keys() %}
+| {{ p }} | {{ parameters[p]['Type'] }} | {{ parameters[p]['Default'] }} | {{ parameters[p]['AllowedValues'] or parameters[p]['AllowedPattern']}} | {{ parameters[p]['Description'] }} |
+{% endfor %}
+{% endif %}
+"""
+
+        jenv = JinjaEnv()
+        template = jenv.from_string(doc_template)
+        data = {}
+
+        data['name'] = self.stackname
+        data['description'] = self.cfn_data['Description']
+        data['dependencies'] = self.dependencies
+
+        if 'Parameters' in self.cfn_data:
+            data['parameters'] = self.cfn_data['Parameters']
+
+        doc_file = os.path.join(self.ctx['template_path'], self.rel_path, self.stackname.upper() + ".md")
+
+        with open(doc_file, 'w') as doc_contents:
+            doc_contents.write(template.render(**data))
+            logger.info('Wrote documentation for %s to %s', self.stackname, doc_file)
+
     def resolve_parameters(self):
         """ Renders parameters for the stack based on the source template and the environment configuration """
 

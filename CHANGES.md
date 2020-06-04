@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.3
+- New Feature: `create-docs` command
+  Renders a markdown documentation next to the rendered stack templated by parsing parameters and other relvant metadata
+
 ## 0.8.2
 - Bug fix release to allow empty stack configs again
 
