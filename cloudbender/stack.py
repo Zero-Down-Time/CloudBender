@@ -20,6 +20,12 @@ from .exceptions import ParameterNotFound, ParameterIllegalValue
 
 import cfnlint.core
 
+try:
+    import importlib.resources as pkg_resources
+except ImportError:
+    import importlib_resources as pkg_resources
+from . import templates
+
 import logging
 logger = logging.getLogger(__name__)
 
@@ -316,7 +322,7 @@ class Stack(object):
         except ClientError as e:
             raise e
 
-    def create_docs(self):
+    def create_docs(self, template=False):
         """ Read template, parse documentation fragments, eg. parameter description
             and create a mardown doc file for the stack
             same idea as eg. helm-docs for values.yaml
@@ -324,31 +330,13 @@ class Stack(object):
 
         self.read_template_file()
 
-        doc_template = """
-{{ name }}
-===
-{{ description }}
-
-{% if dependencies %}
-## Dependencies
-{% for d in dependencies|sort %}
-- {{ d }}
-{% endfor %}
-{% endif %}
-
-{% if parameters %}
-## Parameters
-| Parameter | Type | Default | Format | Description |
-|-----------|------|---------|--------|-------------|
-{% for p in parameters.keys() %}
-| {{ p }} | {{ parameters[p]['Type'] }} | {{ parameters[p]['Default'] }} | {{ parameters[p]['AllowedValues'] or parameters[p]['AllowedPattern']}} | {{ parameters[p]['Description'] }} |
-{% endfor %}
-{% endif %}
-"""
-
-        jenv = JinjaEnv()
-        template = jenv.from_string(doc_template)
-        data = {}
+        if not template:
+            doc_template = pkg_resources.read_text(templates, 'stack-doc.md')
+            jenv = JinjaEnv()
+            template = jenv.from_string(doc_template)
+            data = {}
+        else:
+            doc_template = template
 
         data['name'] = self.stackname
         data['description'] = self.cfn_data['Description']
