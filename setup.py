@@ -53,6 +53,7 @@ setup(
     author_email='stefan@zero-downtime.net',
     url='https://git.zero-downtime.net/ZeroDownTime/CloudBender',
     packages=find_packages(),
+    package_data={ 'cloudbender': ['templates/*.md'], },
     include_package_data=True,
     entry_points={'console_scripts': [ "cloudbender = cloudbender.cli:cli" ]},
     install_requires=['boto3', 'Jinja2', 'oyaml', 'click', 'cfn-lint', 'pyminifier'],
