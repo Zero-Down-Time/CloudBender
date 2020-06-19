@@ -30,7 +30,7 @@ def ensure_dir(path):
     """Creates dir if it does not already exist."""
     if not os.path.exists(path):
         os.makedirs(path)
-        logger.info('Created directory: %s', path)
+        logger.debug('Created directory: %s', path)
 
 
 def setup_logging(debug):

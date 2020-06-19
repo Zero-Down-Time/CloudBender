@@ -2,7 +2,6 @@ import os
 import re
 import hashlib
 import oyaml as yaml
-import json
 import time
 import pathlib
 import pprint
@@ -12,7 +11,7 @@ from dateutil.tz import tzutc
 
 from botocore.exceptions import ClientError
 
-from .utils import dict_merge, search_refs
+from .utils import dict_merge, search_refs, ensure_dir
 from .connection import BotoConnection
 from .jinja import JinjaEnv, read_config_file
 from . import __version__
@@ -230,7 +229,7 @@ class Stack(object):
     def write_template_file(self):
         if self.cfn_template:
             yaml_file = os.path.join(self.ctx['template_path'], self.rel_path, self.stackname + ".yaml")
-            self._ensure_dirs('template_path')
+            ensure_dir(os.path.join(self.ctx['template_path'], self.rel_path))
             with open(yaml_file, 'w') as yaml_contents:
                 yaml_contents.write(self.cfn_template)
                 logger.info('Wrote %s to %s', self.template, yaml_file)
@@ -348,7 +347,8 @@ class Stack(object):
         if 'Outputs' in self.cfn_data:
             data['outputs'] = self.cfn_data['Outputs']
 
-        doc_file = os.path.join(self.ctx['template_path'], self.rel_path, self.stackname.upper() + ".md")
+        doc_file = os.path.join(self.ctx['docs_path'], self.rel_path, self.stackname.upper() + ".md")
+        ensure_dir(os.path.join(self.ctx['docs_path'], self.rel_path))
 
         with open(doc_file, 'w') as doc_contents:
             doc_contents.write(template.render(**data))
@@ -400,28 +400,6 @@ class Stack(object):
 
             if _errors:
                 raise ParameterNotFound('Cannot find value for parameters: {0}'.format(_errors))
-
-    def write_parameter_file(self):
-        parameter_file = os.path.join(self.ctx['parameter_path'], self.rel_path, self.stackname + ".yaml")
-
-        # Render parameters as json for AWS CFN
-        self._ensure_dirs('parameter_path')
-        with open(parameter_file, 'w') as parameter_contents:
-            parameter_contents.write(json.dumps(self.cfn_parameters, indent=2, separators=(',', ': '), sort_keys=True))
-            logger.info('Wrote json parameters for %s to %s', self.stackname, parameter_file)
-
-        if not self.cfn_parameters:
-            # Make sure there are no parameters from previous runs
-            if os.path.isfile(parameter_file):
-                os.remove(parameter_file)
-
-    def delete_parameter_file(self):
-        parameter_file = os.path.join(self.ctx['parameter_path'], self.rel_path, self.stackname + ".yaml")
-        try:
-            os.remove(parameter_file)
-            logger.debug('Deleted parameter %s.', parameter_file)
-        except OSError:
-            pass
 
     def create(self):
         """Creates a stack """
@@ -612,11 +590,6 @@ class Stack(object):
                     event.get("ResourceStatusReason", "")
                 ]))
                 self.most_recent_event_datetime = event["Timestamp"]
-
-    def _ensure_dirs(self, path):
-        # Ensure output dirs exist
-        if not os.path.exists(os.path.join(self.ctx[path], self.rel_path)):
-            os.makedirs(os.path.join(self.ctx[path], self.rel_path))
 
     # stackoutput inspection
     def _inspect_stacks(self, conglomerate):

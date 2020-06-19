@@ -1,7 +1,6 @@
 import pathlib
 import logging
 
-from .utils import ensure_dir
 from .stackgroup import StackGroup
 from .jinja import read_config_file
 from .exceptions import InvalidProjectDir
@@ -18,7 +17,8 @@ class CloudBender(object):
         self.ctx = {
             "config_path": self.root.joinpath("config"),
             "template_path": self.root.joinpath("cloudformation"),
-            "parameter_path": self.root.joinpath("parameters"),
+            "hooks_path": self.root.joinpath("hooks"),
+            "docs_path": self.root.joinpath("docs"),
             "artifact_paths": [self.root.joinpath("artifacts")]
         }
 
@@ -35,7 +35,7 @@ class CloudBender(object):
 
         # Make sure all paths are abs
         for k, v in self.ctx.items():
-            if k in ['config_path', 'template_path', 'parameter_path', 'artifact_paths']:
+            if k in ['config_path', 'template_path', 'hooks_path', 'docs_path', 'artifact_paths']:
                 if isinstance(v, list):
                     new_list = []
                     for p in v:
@@ -49,9 +49,6 @@ class CloudBender(object):
                 elif isinstance(v, str):
                     if not v.is_absolute():
                         self.ctx[k] = self.root.joinpath(v)
-
-            if k in ['template_path', 'parameter_path']:
-                ensure_dir(self.ctx[k])
 
         self.sg = StackGroup(self.ctx['config_path'], self.ctx)
         self.sg.read_config()
