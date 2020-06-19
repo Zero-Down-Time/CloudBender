@@ -323,7 +323,7 @@ class Stack(object):
             raise e
 
     def create_docs(self, template=False):
-        """ Read template, parse documentation fragments, eg. parameter description
+        """ Read rendered template, parse documentation fragments, eg. parameter description
             and create a mardown doc file for the stack
             same idea as eg. helm-docs for values.yaml
          """
@@ -344,6 +344,9 @@ class Stack(object):
 
         if 'Parameters' in self.cfn_data:
             data['parameters'] = self.cfn_data['Parameters']
+
+        if 'Outputs' in self.cfn_data:
+            data['outputs'] = self.cfn_data['Outputs']
 
         doc_file = os.path.join(self.ctx['template_path'], self.rel_path, self.stackname.upper() + ".md")
 

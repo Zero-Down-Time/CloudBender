@@ -61,8 +61,8 @@ def setup_logging(debug):
 
 
 def search_refs(template, attributes, mode):
-    """ Traverses a template and searches for all Fn::GetAtt calls to FortyTwo
-        adding them to the passed in attributes set
+    """ Traverses a template and searches for any remote references and
+        adds them to the attributes set
     """
     if isinstance(template, dict):
         for k, v in template.items():
