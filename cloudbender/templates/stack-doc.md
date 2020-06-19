@@ -25,3 +25,12 @@
 | {{ p }} | {{ parameters[p]['Type'] | lower }} | {{ def }} | {{ format }} | {{ parameters[p]['Description'] }} |
 {% endfor %}
 {% endif %}
+
+{% if outputs %}
+## Outputs
+| Output | Description |
+|--------|-------------|
+{% for p in outputs.keys() %}
+| {{ p }} | {{ outputs[p]['Description'] }} |
+{% endfor %}
+{% endif %}
