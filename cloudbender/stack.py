@@ -357,7 +357,7 @@ class Stack(object):
         my_template = pkg_resources.read_text(templates, template)
         jenv = JinjaEnv()
         template = jenv.from_string(my_template)
-        data = {'stackname': "/".join([self.rel_path, self.stackname]), 'timestamp': datetime.now(tzutc()), 'outputs': self.outputs, 'parameters': self.parameters}
+        data = {'stackname': "/".join([self.rel_path, self.stackname]), 'timestamp': datetime.strftime(datetime.now(tzutc()), "%d/%m/%y %H:%M"), 'outputs': self.outputs, 'parameters': self.parameters}
 
         with open(output_file, 'w') as output_contents:
             output_contents.write(template.render(**data))
@@ -388,6 +388,9 @@ class Stack(object):
 
         if 'Parameters' in self.cfn_data:
             data['parameters'] = self.cfn_data['Parameters']
+            set_parameters = self.resolve_parameters()
+            for p in set_parameters:
+                data['parameters'][p]['value'] = set_parameters[p]
 
         if 'Outputs' in self.cfn_data:
             data['outputs'] = self.cfn_data['Outputs']
@@ -459,7 +462,10 @@ class Stack(object):
             if _errors:
                 raise ParameterNotFound('Cannot find value for parameters: {0}'.format(_errors))
 
-            logger.info('{} {} Parameters:\n{}'.format(self.region, self.stackname, pprint.pformat(_found, indent=2)))
+            logger.info('{} {} set parameters:\n{}'.format(self.region, self.stackname, pprint.pformat(_found, indent=2)))
+
+        # Return dict of explicitly set parameters
+        return _found
 
     @exec_hooks
     def create(self):
@@ -467,7 +473,6 @@ class Stack(object):
 
         # Prepare parameters
         self.resolve_parameters()
-        self.read_template_file()
 
         logger.info('Creating {0} {1}'.format(self.region, self.stackname))
         self.aws_stackid = self.connection_manager.call(
@@ -492,7 +497,6 @@ class Stack(object):
 
         # Prepare parameters
         self.resolve_parameters()
-        self.read_template_file()
 
         logger.info('Updating {0} {1}'.format(self.region, self.stackname))
         try:
