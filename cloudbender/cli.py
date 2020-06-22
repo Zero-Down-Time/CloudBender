@@ -2,6 +2,7 @@ import os
 import sys
 import click
 import functools
+import re
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -91,7 +92,14 @@ def outputs(cb, stack_names, multi, include, values):
 
     stacks = _find_stacks(cb, stack_names, multi)
     for s in stacks:
-        s.get_outputs(include, values)
+        s.get_outputs()
+
+        for output in s.outputs.keys():
+            if re.search(include, output):
+                if values:
+                    print("{}".format(output))
+                else:
+                    print("{}={}".format(output, s.outputs[output]))
 
 
 @click.command()

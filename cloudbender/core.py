@@ -19,6 +19,7 @@ class CloudBender(object):
             "template_path": self.root.joinpath("cloudformation"),
             "hooks_path": self.root.joinpath("hooks"),
             "docs_path": self.root.joinpath("docs"),
+            "outputs_path": self.root.joinpath("outputs"),
             "artifact_paths": [self.root.joinpath("artifacts")]
         }
 
@@ -35,7 +36,7 @@ class CloudBender(object):
 
         # Make sure all paths are abs
         for k, v in self.ctx.items():
-            if k in ['config_path', 'template_path', 'hooks_path', 'docs_path', 'artifact_paths']:
+            if k in ['config_path', 'template_path', 'hooks_path', 'docs_path', 'artifact_paths', 'outputs_path']:
                 if isinstance(v, list):
                     new_list = []
                     for p in v:

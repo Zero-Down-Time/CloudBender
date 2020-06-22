@@ -8,3 +8,7 @@ class ParameterIllegalValue(Exception):
 
 class InvalidProjectDir(Exception):
     """My documentation"""
+
+
+class InvalidHook(Exception):
+    """My documentation"""

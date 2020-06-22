@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.0
+New Features:  
+
+- *Hooks* can now be defined as artifact metadata and are executed at the specified step.
+  Current supported hooks are: `pre_create, pre_update, post_create, post_update`
+- Stack *Outputs* are now written into a yaml file under `outputs` if enabled. Enabled via `options.StoreOutputs`
+- Removed deprecated support for storing parameters as these can be constructed any time from existing and tracked configs
+- some code cleanups and minor changes for cli outputs
+
 ## 0.8.4
 - New Feature: `create-docs` command
   Renders a markdown documentation next to the rendered stack templated by parsing parameters and other relvant metadata
