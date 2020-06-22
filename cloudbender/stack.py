@@ -16,6 +16,7 @@ from .connection import BotoConnection
 from .jinja import JinjaEnv, read_config_file
 from . import __version__
 from .exceptions import ParameterNotFound, ParameterIllegalValue
+from .hooks import exec_hooks
 
 import cfnlint.core
 
@@ -49,6 +50,7 @@ class Stack(object):
 
         self.tags = {}
         self.parameters = {}
+        self.outputs = {}
         self.options = {'Legacy': False}
         self.region = 'global'
         self.profile = ''
@@ -56,6 +58,7 @@ class Stack(object):
         self.notfication_sns = []
 
         self.id = (self.profile, self.region, self.stackname)
+        self.aws_stackid = None
 
         self.md5 = None
         self.mode = 'CloudBender'
@@ -65,7 +68,9 @@ class Stack(object):
         self.cfn_data = None
         self.connection_manager = BotoConnection(self.profile, self.region)
         self.status = None
+        self.store_outputs = False
         self.dependencies = set()
+        self.hooks = {'post_create': [], 'post_update': [], 'pre_create': [], 'pre_update': []}
         self.default_lock = None
         self.multi_delete = True
 
@@ -110,6 +115,9 @@ class Stack(object):
 
         if 'Mode' in self.options:
             self.mode = self.options['Mode']
+
+        if 'StoreOutputs' in self.options:
+            self.store_outputs = True
 
         if 'dependencies' in _config:
             for dep in _config['dependencies']:
@@ -226,6 +234,17 @@ class Stack(object):
             else:
                 self.dependencies.add(ref.split('DoT')[0])
 
+        # Extract hooks
+        try:
+            for hook, func in self.cfn_data['Metadata']['Hooks'].items():
+                if hook in ['post_update', 'post_create', 'pre_create', 'pre_update']:
+                    if isinstance(func, list):
+                        self.hooks[hook].extend(func)
+                    else:
+                        self.hooks[hook].append(func)
+        except KeyError:
+            pass
+
     def write_template_file(self):
         if self.cfn_template:
             yaml_file = os.path.join(self.ctx['template_path'], self.rel_path, self.stackname + ".yaml")
@@ -298,7 +317,7 @@ class Stack(object):
             logger.info("Passed.")
 
     def get_outputs(self, include='.*', values=False):
-        """ Returns outputs of the stack as key=value """
+        """ gets outputs of the stack """
 
         try:
             stacks = self.connection_manager.call(
@@ -308,18 +327,25 @@ class Stack(object):
                 profile=self.profile, region=self.region)['Stacks']
 
             try:
-                logger.debug("Stack outputs for {} in {}:".format(self.stackname, self.region))
                 for output in stacks[0]['Outputs']:
-                    if re.search(include, output['OutputKey']):
-                        if values:
-                            print("{}".format(output['OutputValue']))
-                        else:
-                            print("{}={}".format(output['OutputKey'], output['OutputValue']))
+                    self.outputs[output['OutputKey']] = output['OutputValue']
+                logger.debug("Stack outputs for {} in {}: {}".format(self.stackname, self.region, self.outputs))
             except KeyError:
                 pass
 
         except ClientError as e:
             raise e
+
+        logger.info('{} {} Outputs:\n{}'.format(self.region, self.stackname, pprint.pformat(self.outputs, indent=2)))
+
+    def write_outputs_file(self):
+        output_file = os.path.join(self.ctx['outputs_path'], self.rel_path, self.stackname + ".yaml")
+        ensure_dir(os.path.join(self.ctx['outputs_path'], self.rel_path))
+
+        # Render outputs as yaml under top level key "Outputs"
+        with open(output_file, 'w') as output_contents:
+            output_contents.write(yaml.dump({'Outputs': self.outputs}))
+            logger.info('Wrote outputs for %s to %s', self.stackname, output_file)
 
     def create_docs(self, template=False):
         """ Read rendered template, parse documentation fragments, eg. parameter description
@@ -369,6 +395,7 @@ class Stack(object):
 
         if 'Parameters' in self.cfn_data:
             _errors = []
+            _found = {}
             self.cfn_parameters = []
             for p in self.cfn_data['Parameters']:
                 # In Piped mode we try to resolve all Paramters first via stack_outputs
@@ -392,7 +419,7 @@ class Stack(object):
                     if 'NoEcho' in self.cfn_data['Parameters'][p] and self.cfn_data['Parameters'][p]['NoEcho']:
                         value = '****'
 
-                    logger.info('{} {} Parameter {}={}'.format(self.region, self.stackname, p, value))
+                    _found[p] = value
                 else:
                     # If we have a Default defined in the CFN skip, as AWS will use it
                     if 'Default' not in self.cfn_data['Parameters'][p]:
@@ -401,6 +428,9 @@ class Stack(object):
             if _errors:
                 raise ParameterNotFound('Cannot find value for parameters: {0}'.format(_errors))
 
+            logger.info('{} {} Parameters:\n{}'.format(self.region, self.stackname, pprint.pformat(_found, indent=2)))
+
+    @exec_hooks
     def create(self):
         """Creates a stack """
 
@@ -410,7 +440,7 @@ class Stack(object):
         self.read_template_file()
 
         logger.info('Creating {0} {1}'.format(self.region, self.stackname))
-        self.connection_manager.call(
+        self.aws_stackid = self.connection_manager.call(
             'cloudformation', 'create_stack',
             {'StackName': self.stackname,
                 'TemplateBody': self.cfn_template,
@@ -421,8 +451,15 @@ class Stack(object):
                 'Capabilities': ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM', 'CAPABILITY_AUTO_EXPAND']},
             profile=self.profile, region=self.region)
 
-        return self._wait_for_completion()
+        status = self._wait_for_completion()
+        self.get_outputs()
 
+        if self.store_outputs:
+            self.write_outputs_file()
+
+        return status
+
+    @exec_hooks
     def update(self):
         """Updates an existing stack """
 
@@ -433,7 +470,7 @@ class Stack(object):
 
         logger.info('Updating {0} {1}'.format(self.region, self.stackname))
         try:
-            self.connection_manager.call(
+            self.aws_stackid = self.connection_manager.call(
                 'cloudformation', 'update_stack',
                 {'StackName': self.stackname,
                     'TemplateBody': self.cfn_template,
@@ -450,17 +487,25 @@ class Stack(object):
             else:
                 raise e
 
-        return self._wait_for_completion()
+        status = self._wait_for_completion()
+        self.get_outputs()
 
+        if self.store_outputs:
+            self.write_outputs_file()
+
+        return status
+
+    @exec_hooks
     def delete(self):
         """Deletes a stack """
 
         logger.info('Deleting {0} {1}'.format(self.region, self.stackname))
-        self.connection_manager.call(
+        self.aws_stackid = self.connection_manager.call(
             'cloudformation', 'delete_stack', {'StackName': self.stackname},
             profile=self.profile, region=self.region)
 
-        return self._wait_for_completion()
+        status = self._wait_for_completion()
+        return status
 
     def create_change_set(self, change_set_name):
         """ Creates a Change Set with the name ``change_set_name``.  """
