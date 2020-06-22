@@ -46,4 +46,4 @@ def cmd(stack, arguments):
 def export_outputs_kubezero(stack, arguments):
     """ Write outputs in yaml for kubezero helm chart """
 
-    logger.info(stack.outputs)
+    stack.write_outputs_file(template='kubezero.yaml', filename='kubezero.yaml')
