@@ -1,5 +1,8 @@
 ---
 # Source: CloudBender for stack {{ stackname }} at {{ timestamp }}
+ClusterName: {{ parameters.ClusterName }}
+Domain: {{ parameters.DnsZone }}
+
 cert-manager:
   IamArn: {{ outputs.CertManagerRoleArn }}
 

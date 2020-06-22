@@ -357,7 +357,7 @@ class Stack(object):
         my_template = pkg_resources.read_text(templates, template)
         jenv = JinjaEnv()
         template = jenv.from_string(my_template)
-        data = {'stackname': "/".join([self.rel_path, self.stackname]), 'timestamp': datetime.now(tzutc()), 'outputs': self.outputs}
+        data = {'stackname': "/".join([self.rel_path, self.stackname]), 'timestamp': datetime.now(tzutc()), 'outputs': self.outputs, 'parameters': self.parameters}
 
         with open(output_file, 'w') as output_contents:
             output_contents.write(template.render(**data))
