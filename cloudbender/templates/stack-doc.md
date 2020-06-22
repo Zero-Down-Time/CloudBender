@@ -28,9 +28,9 @@
 
 {% if outputs %}
 ## Outputs
-| Output | Description |
-|--------|-------------|
-{% for p in outputs.keys() %}
-| {{ p }} | {{ outputs[p]['Description'] }} |
+| Output | Description | Value as of {{ timestamp }} |
+|--------|-------------|-----------------------------|
+{% for p in outputs.keys() | sort%}
+| {{ p }} | {{ outputs[p]['Description'] }} | {{ outputs[p]['last_value'] }} |
 {% endfor %}
 {% endif %}

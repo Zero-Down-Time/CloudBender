@@ -1,0 +1,11 @@
+---
+# Source: CloudBender for stack {{ stackname }} at {{ timestamp }}
+cert-manager:
+  IamArn: {{ outputs.CertManagerRoleArn }}
+
+kiam:
+  IamArn: {{ outputs.KiamServerRoleArn }}
+
+aws-ebs-csi-driver:
+  IamArn: {{ outputs.EbsCsiDriverRoleArn }}
+

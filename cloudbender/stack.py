@@ -270,13 +270,17 @@ class Stack(object):
         """ Reads rendered yaml template from disk and extracts metadata """
         if not self.cfn_template:
             yaml_file = os.path.join(self.ctx['template_path'], self.rel_path, self.stackname + ".yaml")
-            with open(yaml_file, 'r') as yaml_contents:
-                self.cfn_template = yaml_contents.read()
-                logger.debug('Read cfn template %s.', yaml_file)
 
-            self.cfn_data = yaml.safe_load(self.cfn_template)
-            self._parse_metadata()
+            try:
+                with open(yaml_file, 'r') as yaml_contents:
+                    self.cfn_template = yaml_contents.read()
+                    logger.debug('Read cfn template %s.', yaml_file)
 
+                self.cfn_data = yaml.safe_load(self.cfn_template)
+                self._parse_metadata()
+            except FileNotFoundError as e:
+                logger.warn("Could not find template file: {}".format(yaml_file))
+                raise e
         else:
             logger.debug('Using cached cfn template %s.', self.stackname)
 
@@ -333,18 +337,30 @@ class Stack(object):
             except KeyError:
                 pass
 
-        except ClientError as e:
-            raise e
+        except ClientError:
+            logger.warn("Could not get outputs of {}".format(self.stackname))
+            pass
 
-        logger.info('{} {} Outputs:\n{}'.format(self.region, self.stackname, pprint.pformat(self.outputs, indent=2)))
+        if self.outputs:
+            logger.info('{} {} Outputs:\n{}'.format(self.region, self.stackname, pprint.pformat(self.outputs, indent=2)))
+            if self.store_outputs:
+                self.write_outputs_file()
 
-    def write_outputs_file(self):
-        output_file = os.path.join(self.ctx['outputs_path'], self.rel_path, self.stackname + ".yaml")
+    def write_outputs_file(self, template='outputs.yaml', filename=False):
+        if not filename:
+            output_file = os.path.join(self.ctx['outputs_path'], self.rel_path, self.stackname + ".yaml")
+        else:
+            output_file = os.path.join(self.ctx['outputs_path'], self.rel_path, filename)
+
         ensure_dir(os.path.join(self.ctx['outputs_path'], self.rel_path))
 
-        # Render outputs as yaml under top level key "Outputs"
+        my_template = pkg_resources.read_text(templates, template)
+        jenv = JinjaEnv()
+        template = jenv.from_string(my_template)
+        data = {'stackname': "/".join([self.rel_path, self.stackname]), 'timestamp': datetime.now(tzutc()), 'outputs': self.outputs}
+
         with open(output_file, 'w') as output_contents:
-            output_contents.write(yaml.dump({'Outputs': self.outputs}))
+            output_contents.write(template.render(**data))
             logger.info('Wrote outputs for %s to %s', self.stackname, output_file)
 
     def create_docs(self, template=False):
@@ -353,7 +369,10 @@ class Stack(object):
             same idea as eg. helm-docs for values.yaml
          """
 
-        self.read_template_file()
+        try:
+            self.read_template_file()
+        except FileNotFoundError:
+            return
 
         if not template:
             doc_template = pkg_resources.read_text(templates, 'stack-doc.md')
@@ -373,7 +392,19 @@ class Stack(object):
         if 'Outputs' in self.cfn_data:
             data['outputs'] = self.cfn_data['Outputs']
 
-        doc_file = os.path.join(self.ctx['docs_path'], self.rel_path, self.stackname.upper() + ".md")
+            # Check for existing outputs yaml, if found add current value column and set header to timestamp from outputs file
+            output_file = os.path.join(self.ctx['outputs_path'], self.rel_path, self.stackname + ".yaml")
+
+            try:
+                with open(output_file, 'r') as yaml_contents:
+                    outputs = yaml.safe_load(yaml_contents.read())
+                    for p in outputs['Outputs']:
+                        data['outputs'][p]['last_value'] = outputs['Outputs'][p]
+                    data['timestamp'] = outputs['TimeStamp']
+            except (FileNotFoundError, KeyError):
+                pass
+
+        doc_file = os.path.join(self.ctx['docs_path'], self.rel_path, self.stackname + ".md")
         ensure_dir(os.path.join(self.ctx['docs_path'], self.rel_path))
 
         with open(doc_file, 'w') as doc_contents:
@@ -436,7 +467,6 @@ class Stack(object):
 
         # Prepare parameters
         self.resolve_parameters()
-        # self.write_parameter_file()
         self.read_template_file()
 
         logger.info('Creating {0} {1}'.format(self.region, self.stackname))
@@ -454,9 +484,6 @@ class Stack(object):
         status = self._wait_for_completion()
         self.get_outputs()
 
-        if self.store_outputs:
-            self.write_outputs_file()
-
         return status
 
     @exec_hooks
@@ -465,7 +492,6 @@ class Stack(object):
 
         # Prepare parameters
         self.resolve_parameters()
-        # self.write_parameter_file()
         self.read_template_file()
 
         logger.info('Updating {0} {1}'.format(self.region, self.stackname))
@@ -490,9 +516,6 @@ class Stack(object):
         status = self._wait_for_completion()
         self.get_outputs()
 
-        if self.store_outputs:
-            self.write_outputs_file()
-
         return status
 
     @exec_hooks
@@ -512,7 +535,6 @@ class Stack(object):
 
         # Prepare parameters
         self.resolve_parameters()
-        # self.write_parameter_file()
         self.read_template_file()
 
         logger.info('Creating change set {0} for stack {1}'.format(change_set_name, self.stackname))
