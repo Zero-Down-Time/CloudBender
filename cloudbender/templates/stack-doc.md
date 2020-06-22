@@ -11,8 +11,8 @@
 
 {% if parameters %}
 ## Parameters
-| Parameter | Type | Default | Format | Description |
-|-----------|------|---------|--------|-------------|
+| Parameter | Type | Default | Format | Description | set value @ {{ timestamp }} |
+|-----------|------|---------|--------|-------------|-------------------------|
 {% for p in parameters.keys() %}
 {% if parameters[p]['AllowedValues'] or parameters[p]['AllowedPattern'] %}
 {% set format = '`%s%s`' % (parameters[p]['AllowedValues'], parameters[p]['AllowedPattern']) %}
@@ -22,14 +22,14 @@
 {% else %}
 {% set def = parameters[p]['Default'] %}
 {% endif %}
-| {{ p }} | {{ parameters[p]['Type'] | lower }} | {{ def }} | {{ format }} | {{ parameters[p]['Description'] }} |
+| {{ p }} | {{ parameters[p]['Type'] | lower }} | {{ def }} | {{ format }} | {{ parameters[p]['Description'] }} | {{ parameters[p]['value'] }} |
 {% endfor %}
 {% endif %}
 
 {% if outputs %}
 ## Outputs
-| Output | Description | Value as of {{ timestamp }} |
-|--------|-------------|-----------------------------|
+| Output | Description | Value @ {{ timestamp }} |
+|--------|-------------|-------------------------|
 {% for p in outputs.keys() | sort%}
 | {{ p }} | {{ outputs[p]['Description'] }} | {{ outputs[p]['last_value'] }} |
 {% endfor %}
