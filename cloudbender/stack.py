@@ -427,9 +427,9 @@ class Stack(object):
             except KeyError:
                 pass
 
+        _found = {}
         if 'Parameters' in self.cfn_data:
             _errors = []
-            _found = {}
             self.cfn_parameters = []
             for p in self.cfn_data['Parameters']:
                 # In Piped mode we try to resolve all Paramters first via stack_outputs
