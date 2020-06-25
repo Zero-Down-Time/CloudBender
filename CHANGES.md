@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.9.2
+- Bug fix release only
+
 ## 0.9.1
 - Added explicitly set parameter values to the create-doc markdown to get complete stack picture
 
