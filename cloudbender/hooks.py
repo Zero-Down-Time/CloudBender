@@ -23,7 +23,11 @@ def exec_hooks(func):
     def decorated(self, *args, **kwargs):
         execute_hooks(self.hooks.get("pre_" + func.__name__, []), self)
         response = func(self, *args, **kwargs)
-        execute_hooks(self.hooks.get("post_" + func.__name__, []), self)
+
+        # Only execute post hook for successful actions
+        if response == "COMPLETE":
+            execute_hooks(self.hooks.get("post_" + func.__name__, []), self)
+
         return response
 
     return decorated

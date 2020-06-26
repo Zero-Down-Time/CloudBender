@@ -30,16 +30,6 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class StackStatus(object):
-    """
-    StackStatus stores simplified stack statuses.
-    """
-    COMPLETE = "complete"
-    FAILED = "failed"
-    IN_PROGRESS = "in progress"
-    PENDING = "pending"
-
-
 class Stack(object):
     def __init__(self, name, template, path, rel_path, ctx):
         self.stackname = name
@@ -513,7 +503,7 @@ class Stack(object):
         except ClientError as e:
             if 'No updates are to be performed' in e.response['Error']['Message']:
                 logger.info('No updates for {0}'.format(self.stackname))
-                return StackStatus.COMPLETE
+                return "COMPLETE"
             else:
                 raise e
 
@@ -553,24 +543,17 @@ class Stack(object):
             profile=self.profile, region=self.region)
         return self._wait_for_completion()
 
-    def describe(self):
-        """
-        Returns the a description of the stack.
-        :returns: A stack description.
-        """
-        return self.connection_manager.call(
-            "cloudformation",
-            "describe_stacks",
-            {"StackName": self.stackname},
-            profile=self.profile, region=self.region)
-
     def get_status(self):
         """
         Returns the stack's status.
         :returns: The stack's status.
         """
         try:
-            status = self.describe()["Stacks"][0]["StackStatus"]
+            status = self.connection_manager.call(
+                "cloudformation",
+                "describe_stacks",
+                {"StackName": self.stackname},
+                profile=self.profile, region=self.region)["Stacks"][0]["StackStatus"]
         except ClientError as e:
             if e.response["Error"]["Message"].endswith("does not exist"):
                 return None
@@ -607,13 +590,13 @@ class Stack(object):
         def timed_out(elapsed):
             return elapsed >= timeout if timeout else False
 
-        status = StackStatus.IN_PROGRESS
+        status = "IN_PROGRESS"
 
         self.most_recent_event_datetime = (
             datetime.now(tzutc()) - timedelta(seconds=3)
         )
         elapsed = 0
-        while status == StackStatus.IN_PROGRESS and not timed_out(elapsed):
+        while status == "IN_PROGRESS" and not timed_out(elapsed):
             status = self._get_simplified_status(self.get_status())
             if not status:
                 return None
@@ -629,13 +612,13 @@ class Stack(object):
         """ Returns the simplified Stack Status.  """
         if status:
             if status.endswith("ROLLBACK_COMPLETE"):
-                return StackStatus.FAILED
+                return "FAILED"
             elif status.endswith("_COMPLETE"):
-                return StackStatus.COMPLETE
+                return "COMPLETE"
             elif status.endswith("_IN_PROGRESS"):
-                return StackStatus.IN_PROGRESS
+                return "IN_PROGRESS"
             elif status.endswith("_FAILED"):
-                return StackStatus.FAILED
+                return "FAILED"
             else:
                 return 'Unknown'
 
