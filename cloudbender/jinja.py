@@ -56,10 +56,13 @@ def include_raw_gz(context, files=None, gz=True, remove_comments=False):
 
     if remove_comments:
         # Remove full line comments but not shebang
-        _re = re.compile(r'^\s*#[^!]')
+        _re_comment = re.compile(r'^\s*#[^!]')
+        _re_blank = re.compile(r'^\s*$')
         stripped_output = ''
         for curline in output.splitlines():
-            if re.match(_re, curline):
+            if re.match(_re_blank, curline):
+                continue
+            elif re.match(_re_comment, curline):
                 logger.debug("Removed {}".format(curline))
             else:
                 stripped_output = stripped_output + curline + '\n'
