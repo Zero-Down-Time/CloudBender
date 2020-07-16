@@ -452,7 +452,16 @@ class Stack(object):
             if _errors:
                 raise ParameterNotFound('Cannot find value for parameters: {0}'.format(_errors))
 
+            # Warning of excessive parameters, might be useful to spot typos early
+            _warnings = []
+            for p in self.parameters.keys():
+                if p not in self.cfn_data['Parameters']:
+                    _warnings.append(p)
+
             logger.info('{} {} set parameters:\n{}'.format(self.region, self.stackname, pprint.pformat(_found, indent=2)))
+
+            if _warnings:
+                logger.warning('Ignored additional parameters: {}.'.format(_warnings))
 
         # Return dict of explicitly set parameters
         return _found

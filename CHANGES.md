@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.3
+- Improved bash minify for user-data
+- Unused additional parameters are now printed as a warning to catch potential typos early
+
 ## 0.9.2
 - Bug fix release only
 
