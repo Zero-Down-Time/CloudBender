@@ -51,6 +51,9 @@ def option(context, attribute, default_value=u'', source='options'):
 def include_raw_gz(context, files=None, gz=True, remove_comments=False):
     jenv = context.environment
     output = ''
+
+    # For shell script we can even remove whitespaces so treat them individually
+    # sed -e '2,$ {/^ *$/d ; /^ *#/d ; /^[ \t] *#/d ; /*^/d ; s/^[ \t]*// ; s/*[ \t]$// ; s/ $//}'
     for name in files:
         output = output + jinja2.Markup(jenv.loader.get_source(jenv, name)[0])
 

@@ -1,7 +1,6 @@
 import os
 import copy
 import logging
-import boto3
 
 logger = logging.getLogger(__name__)
 
