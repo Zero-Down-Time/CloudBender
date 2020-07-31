@@ -396,7 +396,7 @@ class Stack(object):
                     for p in outputs['Outputs']:
                         data['outputs'][p]['last_value'] = outputs['Outputs'][p]
                     data['timestamp'] = outputs['TimeStamp']
-            except (FileNotFoundError, KeyError):
+            except (FileNotFoundError, KeyError, TypeError):
                 pass
 
         doc_file = os.path.join(self.ctx['docs_path'], self.rel_path, self.stackname + ".md")
@@ -415,8 +415,8 @@ class Stack(object):
             (template, rules, matches) = cfnlint.core.get_template_rules(filename, args)
             template_obj = cfnlint.template.Template(filename, template, [self.region])
 
-            g = cfnlint.graph.Graph(template_obj)
             path = os.path.join(self.ctx['docs_path'], self.rel_path, self.stackname + ".dot")
+            g = cfnlint.graph.Graph(template_obj)
             try:
                 g.to_dot(path)
                 logger.info('DOT representation of the graph written to %s', path)
