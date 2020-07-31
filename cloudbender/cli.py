@@ -105,13 +105,14 @@ def outputs(cb, stack_names, multi, include, values):
 @click.command()
 @click.argument("stack_names", nargs=-1)
 @click.option("--multi", is_flag=True, help="Allow more than one stack to match")
+@click.option("--graph", is_flag=True, help="Create Dot Graph file")
 @click.pass_obj
-def create_docs(cb, stack_names, multi):
+def create_docs(cb, stack_names, multi, graph):
     """ Parses all documentation fragments out of rendered templates creating docs/*.md file """
 
     stacks = _find_stacks(cb, stack_names, multi)
     for s in stacks:
-        s.create_docs()
+        s.create_docs(graph=graph)
 
 
 @click.command()
