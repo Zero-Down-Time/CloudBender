@@ -303,7 +303,7 @@ class Stack(object):
         (args, filenames, formatter) = cfnlint.core.get_args_filenames(lint_args)
         (template, rules, matches) = cfnlint.core.get_template_rules(filename, args)
         if not matches:
-            matches.extend(cfnlint.core.run_cli(filename, template, rules, ['us-east-1'], None))
+            matches.extend(cfnlint.core.run_checks(filename, template, rules, [self.region]))
         if len(matches):
             for match in matches:
                 logger.error(formatter._format(match))
