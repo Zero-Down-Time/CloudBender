@@ -3,4 +3,4 @@ Jinja2
 oyaml
 click
 pyminifier
-cfn-lint
+cfn-lint>=0.34

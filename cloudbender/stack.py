@@ -19,6 +19,8 @@ from .exceptions import ParameterNotFound, ParameterIllegalValue
 from .hooks import exec_hooks
 
 import cfnlint.core
+import cfnlint.template
+import cfnlint.graph
 
 try:
     import importlib.resources as pkg_resources
@@ -353,7 +355,7 @@ class Stack(object):
             output_contents.write(template.render(**data))
             logger.info('Wrote outputs for %s to %s', self.stackname, output_file)
 
-    def create_docs(self, template=False):
+    def create_docs(self, template=False, graph=False):
         """ Read rendered template, parse documentation fragments, eg. parameter description
             and create a mardown doc file for the stack
             same idea as eg. helm-docs for values.yaml
@@ -403,6 +405,24 @@ class Stack(object):
         with open(doc_file, 'w') as doc_contents:
             doc_contents.write(template.render(**data))
             logger.info('Wrote documentation for %s to %s', self.stackname, doc_file)
+
+        # Write Graph in Dot format
+        if graph:
+            filename = os.path.join(self.ctx['template_path'], self.rel_path, self.stackname + ".yaml")
+
+            lint_args = ['--template', filename]
+            (args, filenames, formatter) = cfnlint.core.get_args_filenames(lint_args)
+            (template, rules, matches) = cfnlint.core.get_template_rules(filename, args)
+            template_obj = cfnlint.template.Template(filename, template, [self.region])
+
+            g = cfnlint.graph.Graph(template_obj)
+            path = os.path.join(self.ctx['docs_path'], self.rel_path, self.stackname + ".dot")
+            try:
+                g.to_dot(path)
+                logger.info('DOT representation of the graph written to %s', path)
+            except ImportError:
+                logger.error(
+                    'Could not write the graph in DOT format. Please install either `pygraphviz` or `pydot` modules.')
 
     def resolve_parameters(self):
         """ Renders parameters for the stack based on the source template and the environment configuration """
