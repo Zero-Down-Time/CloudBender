@@ -540,16 +540,16 @@ class Stack(object):
         self.resolve_parameters()
 
         logger.info('Creating {0} {1}'.format(self.region, self.stackname))
+        kwargs = {'StackName': self.stackname,
+                  'Parameters': self.cfn_parameters,
+                  'OnFailure': self.onfailure,
+                  'NotificationARNs': self.notfication_sns,
+                  'Tags': [{"Key": str(k), "Value": str(v)} for k, v in self.tags.items()],
+                  'Capabilities': ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM', 'CAPABILITY_AUTO_EXPAND']}
+        kwargs = self._add_template_arg(kwargs)
+
         self.aws_stackid = self.connection_manager.call(
-            'cloudformation', 'create_stack',
-            {'StackName': self.stackname,
-                'TemplateBody': self.cfn_template,
-                'Parameters': self.cfn_parameters,
-                'OnFailure': self.onfailure,
-                'NotificationARNs': self.notfication_sns,
-                'Tags': [{"Key": str(k), "Value": str(v)} for k, v in self.tags.items()],
-                'Capabilities': ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM', 'CAPABILITY_AUTO_EXPAND']},
-            profile=self.profile, region=self.region)
+            'cloudformation', 'create_stack', kwargs, profile=self.profile, region=self.region)
 
         status = self._wait_for_completion()
         self.get_outputs()
@@ -565,15 +565,15 @@ class Stack(object):
 
         logger.info('Updating {0} {1}'.format(self.region, self.stackname))
         try:
+            kwargs = {'StackName': self.stackname,
+                      'Parameters': self.cfn_parameters,
+                      'NotificationARNs': self.notfication_sns,
+                      'Tags': [{"Key": str(k), "Value": str(v)} for k, v in self.tags.items()],
+                      'Capabilities': ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM', 'CAPABILITY_AUTO_EXPAND']}
+            kwargs = self._add_template_arg(kwargs)
+
             self.aws_stackid = self.connection_manager.call(
-                'cloudformation', 'update_stack',
-                {'StackName': self.stackname,
-                    'TemplateBody': self.cfn_template,
-                    'Parameters': self.cfn_parameters,
-                    'NotificationARNs': self.notfication_sns,
-                    'Tags': [{"Key": str(k), "Value": str(v)} for k, v in self.tags.items()],
-                    'Capabilities': ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM', 'CAPABILITY_AUTO_EXPAND']},
-                profile=self.profile, region=self.region)
+                'cloudformation', 'update_stack', kwargs, profile=self.profile, region=self.region)
 
         except ClientError as e:
             if 'No updates are to be performed' in e.response['Error']['Message']:
@@ -607,15 +607,15 @@ class Stack(object):
         self.read_template_file()
 
         logger.info('Creating change set {0} for stack {1}'.format(change_set_name, self.stackname))
+        kwargs = {'StackName': self.stackname,
+                  'ChangeSetName': change_set_name,
+                  'Parameters': self.cfn_parameters,
+                  'Tags': [{"Key": str(k), "Value": str(v)} for k, v in self.tags.items()],
+                  'Capabilities': ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM']}
+        kwargs = self._add_template_arg(kwargs)
+
         self.connection_manager.call(
-            'cloudformation', 'create_change_set',
-            {'StackName': self.stackname,
-                'ChangeSetName': change_set_name,
-                'TemplateBody': self.cfn_template,
-                'Parameters': self.cfn_parameters,
-                'Tags': [{"Key": str(k), "Value": str(v)} for k, v in self.tags.items()],
-                'Capabilities': ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM']},
-            profile=self.profile, region=self.region)
+            'cloudformation', 'create_change_set', kwargs, profile=self.profile, region=self.region)
         return self._wait_for_completion()
 
     def get_status(self):
@@ -758,3 +758,15 @@ class Stack(object):
 
         # Add outputs from stacks into the data for jinja under StackOutput
         return stack_outputs
+
+    def _add_template_arg(self, kwargs):
+        if self.template_bucket_url:
+            # https://bucket-name.s3.Region.amazonaws.com/key name
+            # so we need the region, AWS as usual
+            (bucket, path) = get_s3_url(self.template_bucket_url, self.rel_path, self.stackname + ".yaml")
+            bucket_region = self.connection_manager.call('s3', 'get_bucket_location', {'Bucket': bucket}, profile=self.profile, region=self.region)['LocationConstraint']
+            kwargs['TemplateURL'] = 'https://{}.s3.{}.amazonaws.com/{}'.format(bucket, bucket_region, path)
+        else:
+            kwargs['TemplateBody'] = self.cfn_template
+
+        return kwargs
