@@ -1,6 +1,7 @@
 import os
 import copy
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -87,3 +88,17 @@ def search_refs(template, attributes, mode):
         for k in template:
             if isinstance(k, dict) or isinstance(k, list):
                 search_refs(k, attributes, mode)
+
+
+def get_s3_url(url, *args):
+    bucket = None
+    path = None
+
+    m = re.match('^(s3://)?([^/]*)(/.*)?', url)
+    bucket = m[2]
+    if m[3]:
+        path = m[3].lstrip('/')
+
+    path = os.path.join(path, *args)
+
+    return(bucket, path)

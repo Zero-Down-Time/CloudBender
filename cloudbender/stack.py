@@ -11,7 +11,7 @@ from dateutil.tz import tzutc
 
 from botocore.exceptions import ClientError
 
-from .utils import dict_merge, search_refs, ensure_dir
+from .utils import dict_merge, search_refs, ensure_dir, get_s3_url
 from .connection import BotoConnection
 from .jinja import JinjaEnv, read_config_file
 from . import __version__
@@ -65,6 +65,7 @@ class Stack(object):
         self.hooks = {'post_create': [], 'post_update': [], 'pre_create': [], 'pre_update': []}
         self.default_lock = None
         self.multi_delete = True
+        self.template_bucket_url = None
 
     def dump_config(self):
         logger.debug("<Stack {}: {}>".format(self.id, pprint.pformat(vars(self))))
@@ -77,15 +78,14 @@ class Stack(object):
         self.parameters.update(sg_config.get('parameters', {}))
         self.options.update(sg_config.get('options', {}))
 
-        if 'region' in sg_config:
-            self.region = sg_config['region']
-        if 'profile' in sg_config:
-            self.profile = sg_config['profile']
-        if 'notfication_sns' in sg_config:
-            self.notfication_sns = sg_config['notfication_sns']
+        # by default inherit parent group settings
+        for p in ['region', 'profile', 'notfication_sns', 'template_bucket_url']:
+            if p in sg_config:
+                setattr(self, p, sg_config[p])
 
+        # now override stack specific settings
         _config = read_config_file(self.path, sg_config.get('variables', {}))
-        for p in ["region", "stackname", "template", "default_lock", "multi_delete", "provides", "onfailure", "notification_sns"]:
+        for p in ["region", "stackname", "template", "default_lock", "multi_delete", "provides", "onfailure", "notification_sns", "template_bucket_url"]:
             if p in _config:
                 setattr(self, p, _config[p])
 
@@ -97,18 +97,13 @@ class Stack(object):
         if 'Artifact' not in self.tags:
             self.tags['Artifact'] = self.provides
 
-        # backwards comp
-        if 'vars' in _config:
-            logger.warn("vars: in config is deprecated, please use options: instead")
-            self.options = dict_merge(self.options, _config['vars'])
-
         if 'options' in _config:
             self.options = dict_merge(self.options, _config['options'])
 
         if 'Mode' in self.options:
             self.mode = self.options['Mode']
 
-        if 'StoreOutputs' in self.options:
+        if 'StoreOutputs' in self.options and self.options['StoreOutputs']:
             self.store_outputs = True
 
         if 'dependencies' in _config:
@@ -244,9 +239,26 @@ class Stack(object):
             with open(yaml_file, 'w') as yaml_contents:
                 yaml_contents.write(self.cfn_template)
                 logger.info('Wrote %s to %s', self.template, yaml_file)
-                if len(self.cfn_template) > 51200:
-                    logger.warning("Rendered template exceeds maximum allowed size of 51200, actual size: {} !".format(len(self.cfn_template)))
 
+            # upload template to s3 if set
+            if self.template_bucket_url:
+                try:
+                    (bucket, path) = get_s3_url(self.template_bucket_url, self.rel_path, self.stackname + ".yaml")
+                    self.connection_manager.call(
+                        's3', 'put_object',
+                        {'Bucket': bucket,
+                            'Key': path,
+                            'Body': self.cfn_template,
+                            'ServerSideEncryption': 'AES256'},
+                        profile=self.profile, region=self.region)
+
+                    logger.info("Uploaded template to s3://{}/{}".format(bucket, path))
+                except ClientError as e:
+                    logger.error("Error trying to upload template so S3: {}, {}".format(self.template_bucket_url, e))
+
+            else:
+                if len(self.cfn_template) > 51200:
+                    logger.warning("template_bucket_url not set and rendered template exceeds maximum allowed size of 51200, actual size: {} !".format(len(self.cfn_template)))
         else:
             logger.error('No cfn template rendered yet for stack {}.'.format(self.stackname))
 
@@ -258,21 +270,55 @@ class Stack(object):
         except OSError:
             pass
 
-    def read_template_file(self):
-        """ Reads rendered yaml template from disk and extracts metadata """
-        if not self.cfn_template:
-            yaml_file = os.path.join(self.ctx['template_path'], self.rel_path, self.stackname + ".yaml")
-
+        if self.template_bucket_url:
             try:
-                with open(yaml_file, 'r') as yaml_contents:
-                    self.cfn_template = yaml_contents.read()
-                    logger.debug('Read cfn template %s.', yaml_file)
+                (bucket, path) = get_s3_url(self.template_bucket_url, self.rel_path, self.stackname + ".yaml")
+                self.connection_manager.call(
+                    's3', 'delete_object',
+                    {'Bucket': bucket,
+                        'Key': path},
+                    profile=self.profile, region=self.region)
 
-                self.cfn_data = yaml.safe_load(self.cfn_template)
-                self._parse_metadata()
-            except FileNotFoundError as e:
-                logger.warn("Could not find template file: {}".format(yaml_file))
-                raise e
+                logger.info("Deleted template from s3://{}/{}".format(bucket, path))
+            except ClientError as e:
+                logger.error("Error trying to delete template from S3: {}, {}".format(self.template_bucket_url, e))
+
+    def read_template_file(self):
+        """ Reads rendered yaml template from disk or s3 and extracts metadata """
+        if not self.cfn_template:
+            if self.template_bucket_url:
+                try:
+                    (bucket, path) = get_s3_url(self.template_bucket_url, self.rel_path, self.stackname + ".yaml")
+                    template = self.connection_manager.call(
+                        's3', 'get_object',
+                        {'Bucket': bucket,
+                            'Key': path},
+                        profile=self.profile, region=self.region)
+                    logger.debug("Got template from s3://{}/{}".format(bucket, path))
+
+                except ClientError as e:
+                    logger.error("Could not find template file on S3: {}/{}, {}".format(bucket, path, e))
+
+                self.cfn_template = template['Body'].read().decode('utf-8')
+
+                # Overwrite local copy
+                yaml_file = os.path.join(self.ctx['template_path'], self.rel_path, self.stackname + ".yaml")
+                ensure_dir(os.path.join(self.ctx['template_path'], self.rel_path))
+                with open(yaml_file, 'w') as yaml_contents:
+                    yaml_contents.write(self.cfn_template)
+            else:
+                yaml_file = os.path.join(self.ctx['template_path'], self.rel_path, self.stackname + ".yaml")
+
+                try:
+                    with open(yaml_file, 'r') as yaml_contents:
+                        self.cfn_template = yaml_contents.read()
+                        logger.debug('Read cfn template %s.', yaml_file)
+                except FileNotFoundError as e:
+                    logger.warn("Could not find template file: {}".format(yaml_file))
+                    raise e
+
+            self.cfn_data = yaml.safe_load(self.cfn_template)
+            self._parse_metadata()
         else:
             logger.debug('Using cached cfn template %s.', self.stackname)
 

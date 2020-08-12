@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.5
+### New Features
+Support for uploading and retrieving rendered templates from S3!    
+
+Enabled by setting `template_bucket_url` to a valid S3 location: ```s3://<bucket_name>[/<prefix>]```    
+Templates will still be stored and updated in the local file system to allow tracking via git.
+
 ## 0.9.4
 - new option to generate Dot Graph files via `--graph` option for the create-docs command
 - fix validate command using latest cfn-lint library

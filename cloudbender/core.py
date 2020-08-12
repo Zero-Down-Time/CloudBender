@@ -63,7 +63,6 @@ class CloudBender(object):
     def clean(self):
         for s in self.all_stacks:
             s.delete_template_file()
-            s.delete_parameter_file()
 
     def resolve_stacks(self, token):
         stacks = []
