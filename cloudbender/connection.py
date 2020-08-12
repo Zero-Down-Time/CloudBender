@@ -41,10 +41,12 @@ class BotoConnection():
 
     def _get_client(self, service, profile=None, region=None):
         if self._clients.get((profile, region, service)):
+            logger.debug("Reusing boto session for {} {} {}".format(profile, region, service))
             return self._clients[(profile, region, service)]
 
         session = self._get_session(profile, region)
         client = boto3.Session(botocore_session=session).client(service)
+        logger.debug("New boto session for {} {} {}".format(profile, region, service))
 
         self._clients[(profile, region, service)] = client
         return client
@@ -53,6 +55,7 @@ class BotoConnection():
         while True:
             try:
                 client = self._get_client(service, profile, region)
+                logger.debug("Calling {}:{}".format(client, command))
                 return getattr(client, command)(**kwargs)
 
             except botocore.exceptions.ClientError as e:
