@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.6
+- only upload templates if render is successful
+- support for jinja user-data
+- tweak for kubezero output template
+
 ## 0.9.5
 ### New Features
 Support for uploading and retrieving rendered templates from S3!    

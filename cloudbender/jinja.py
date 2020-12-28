@@ -61,10 +61,13 @@ def include_raw_gz(context, files=None, gz=True, remove_comments=False):
         # Remove full line comments but not shebang
         _re_comment = re.compile(r'^\s*#[^!]')
         _re_blank = re.compile(r'^\s*$')
+        _re_keep = re.compile(r'^## template: jinja$')
         stripped_output = ''
         for curline in output.splitlines():
             if re.match(_re_blank, curline):
                 continue
+            elif re.match(_re_keep, curline):
+                stripped_output = stripped_output + curline + '\n'
             elif re.match(_re_comment, curline):
                 logger.debug("Removed {}".format(curline))
             else:
