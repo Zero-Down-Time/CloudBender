@@ -296,16 +296,17 @@ class Stack(object):
                         profile=self.profile, region=self.region)
                     logger.debug("Got template from s3://{}/{}".format(bucket, path))
 
+                    self.cfn_template = template['Body'].read().decode('utf-8')
+
+                    # Overwrite local copy
+                    yaml_file = os.path.join(self.ctx['template_path'], self.rel_path, self.stackname + ".yaml")
+                    ensure_dir(os.path.join(self.ctx['template_path'], self.rel_path))
+                    with open(yaml_file, 'w') as yaml_contents:
+                        yaml_contents.write(self.cfn_template)
+
                 except ClientError as e:
                     logger.error("Could not find template file on S3: {}/{}, {}".format(bucket, path, e))
 
-                self.cfn_template = template['Body'].read().decode('utf-8')
-
-                # Overwrite local copy
-                yaml_file = os.path.join(self.ctx['template_path'], self.rel_path, self.stackname + ".yaml")
-                ensure_dir(os.path.join(self.ctx['template_path'], self.rel_path))
-                with open(yaml_file, 'w') as yaml_contents:
-                    yaml_contents.write(self.cfn_template)
             else:
                 yaml_file = os.path.join(self.ctx['template_path'], self.rel_path, self.stackname + ".yaml")
 
