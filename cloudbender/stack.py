@@ -1,7 +1,7 @@
 import os
 import re
 import hashlib
-import oyaml as yaml
+import yaml
 import time
 import pathlib
 import pprint
@@ -30,6 +30,15 @@ from . import templates
 
 import logging
 logger = logging.getLogger(__name__)
+
+
+# Ignore any !<Constructors> during re-loading of CFN templates
+class SafeLoaderIgnoreUnknown(yaml.SafeLoader):
+    def ignore_unknown(self, node):
+        return node.tag
+
+
+SafeLoaderIgnoreUnknown.add_constructor(None, SafeLoaderIgnoreUnknown.ignore_unknown)
 
 
 class Stack(object):
@@ -135,7 +144,7 @@ class Stack(object):
 
         try:
             self.cfn_template = template.render(_config)
-            self.cfn_data = yaml.safe_load(self.cfn_template)
+            self.cfn_data = yaml.load(self.cfn_template, Loader=SafeLoaderIgnoreUnknown)
         except Exception as e:
             # In case we rendered invalid yaml this helps to debug
             if self.cfn_template:
@@ -184,7 +193,7 @@ class Stack(object):
             logger.info("Piped mode: Added parameters for remote stack references")
 
         # Re-read updated template
-        self.cfn_data = yaml.safe_load(self.cfn_template)
+        self.cfn_data = yaml.load(self.cfn_template, Loader=SafeLoaderIgnoreUnknown)
 
         # Check for empty top level Parameters, Outputs and Conditions and remove
         for key in ['Parameters', 'Outputs', 'Conditions']:
@@ -318,7 +327,7 @@ class Stack(object):
                     logger.warn("Could not find template file: {}".format(yaml_file))
                     raise e
 
-            self.cfn_data = yaml.safe_load(self.cfn_template)
+            self.cfn_data = yaml.load(self.cfn_template, Loader=SafeLoaderIgnoreUnknown)
             self._parse_metadata()
         else:
             logger.debug('Using cached cfn template %s.', self.stackname)
