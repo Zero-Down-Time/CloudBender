@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.7
+- CloudBender now requires Python >= 3.7
+- drop oyaml requirement
+- support for short intrinsic functions like !Ref, !Sub etc. by ignoring custom constructors before sending them to AWS to resolve
+
 ## 0.9.6
 - only upload templates if render is successful
 - support for jinja user-data
