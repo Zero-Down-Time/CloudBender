@@ -33,6 +33,10 @@ Commands:
   validate           Validates already rendered templates using cfn-lint
 ```
 
+## Config management
+- Within the config folder each directory represents either a stack group if it has sub-directories, or an actual Cloudformation stack in case it is a leaf folder.
+- The actual configuration for each stack is hierachly merged. Lower level config files overwrite higher-level values. Complex data structures like dictionaries and arrays are deep merged.
+
 # Secrets
 
 CloudBender supports Mozilla's [SOPS](https://github.com/mozilla/sops) to encrypt values in any config yaml file since version 0.8.1  
