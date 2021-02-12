@@ -52,7 +52,7 @@ class Stack(object):
         self.tags = {}
         self.parameters = {}
         self.outputs = {}
-        self.options = {'Legacy': False}
+        self.options = {}
         self.region = 'global'
         self.profile = ''
         self.onfailure = 'DELETE'
@@ -165,23 +165,9 @@ class Stack(object):
 """
             self.cfn_template = re.sub(_res, '', self.cfn_template)
 
-        # Add Legacy FortyTwo resource to prevent AWS from replacing existing resources for NO reason ;-(
         include = []
         search_refs(self.cfn_data, include, self.mode)
-        if self.mode != "Piped" and len(include) and self.options['Legacy']:
-            _res = """
-  FortyTwo:
-    Type: Custom::FortyTwo
-    Properties:
-      ServiceToken:
-        Fn::Sub: "arn:aws:lambda:${{AWS::Region}}:${{AWS::AccountId}}:function:FortyTwo"
-      UpdateToken: __HASH__
-      Include: {}""".format(sorted(set(include)))
-
-            self.cfn_template = re.sub(r'Resources:', r'Resources:' + _res + '\n', self.cfn_template)
-            logger.info("Legacy Mode -> added Custom::FortyTwo")
-
-        elif self.mode == "Piped" and len(include):
+        if self.mode == "Piped" and len(include):
             _res = ""
             for attr in include:
                 _res = _res + """
@@ -221,7 +207,7 @@ class Stack(object):
         except KeyError:
             pass
 
-        # Add CloudBender or FortyTwo dependencies
+        # Add CloudBender dependencies
         include = []
         search_refs(self.cfn_data, include, self.mode)
         for ref in include:
@@ -745,7 +731,7 @@ class Stack(object):
                     stacks.append(stack)
                     break
 
-        # Gather stack outputs, use Tag['Artifact'] as name space: Artifact.OutputName, same as FortyTwo
+        # Gather stack outputs, use Tag['Artifact'] as name space: Artifact.OutputName
         stack_outputs = {}
         for stack in stacks:
             # If stack has an Artifact Tag put resources into the namespace Artifact.Resource
