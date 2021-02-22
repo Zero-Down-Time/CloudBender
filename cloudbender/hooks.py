@@ -45,9 +45,3 @@ def cmd(stack, arguments):
         logger.info(hook.stdout.decode("utf-8"))
     except TypeError:
         raise InvalidHook('Invalid argument {}'.format(arguments))
-
-
-def export_outputs_kubezero(stack, arguments):
-    """ Write outputs in yaml for kubezero helm chart """
-
-    stack.write_outputs_file(template='kubezero.yaml', filename='kubezero.yaml')
