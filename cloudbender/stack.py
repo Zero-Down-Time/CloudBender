@@ -357,6 +357,7 @@ class Stack(object):
     def get_outputs(self, include='.*', values=False):
         """ gets outputs of the stack """
 
+        self.read_template_file()
         try:
             stacks = self.connection_manager.call(
                 "cloudformation",
@@ -378,24 +379,23 @@ class Stack(object):
         if self.outputs:
             logger.info('{} {} Outputs:\n{}'.format(self.region, self.stackname, pprint.pformat(self.outputs, indent=2)))
             if self.store_outputs:
-                self.write_outputs_file()
+                try:
+                    filename = self.cfn_data['Metadata']['CustomOutputs']['Name']
+                    my_template = self.cfn_data['Metadata']['CustomOutputs']['Template']
+                except (TypeError, KeyError):
+                    filename = self.stackname + ".yaml"
+                    my_template = pkg_resources.read_text(templates, 'outputs.yaml')
 
-    def write_outputs_file(self, template='outputs.yaml', filename=False):
-        if not filename:
-            output_file = os.path.join(self.ctx['outputs_path'], self.rel_path, self.stackname + ".yaml")
-        else:
-            output_file = os.path.join(self.ctx['outputs_path'], self.rel_path, filename)
+                output_file = os.path.join(self.ctx['outputs_path'], self.rel_path, filename)
+                ensure_dir(os.path.join(self.ctx['outputs_path'], self.rel_path))
 
-        ensure_dir(os.path.join(self.ctx['outputs_path'], self.rel_path))
+                jenv = JinjaEnv()
+                template = jenv.from_string(my_template)
+                data = {'stackname': "/".join([self.rel_path, self.stackname]), 'timestamp': datetime.strftime(datetime.now(tzutc()), "%d/%m/%y %H:%M"), 'outputs': self.outputs, 'parameters': self.parameters}
 
-        my_template = pkg_resources.read_text(templates, template)
-        jenv = JinjaEnv()
-        template = jenv.from_string(my_template)
-        data = {'stackname': "/".join([self.rel_path, self.stackname]), 'timestamp': datetime.strftime(datetime.now(tzutc()), "%d/%m/%y %H:%M"), 'outputs': self.outputs, 'parameters': self.parameters}
-
-        with open(output_file, 'w') as output_contents:
-            output_contents.write(template.render(**data))
-            logger.info('Wrote outputs for %s to %s', self.stackname, output_file)
+                with open(output_file, 'w') as output_contents:
+                    output_contents.write(template.render(**data))
+                    logger.info('Wrote outputs for %s to %s', self.stackname, output_file)
 
     def create_docs(self, template=False, graph=False):
         """ Read rendered template, parse documentation fragments, eg. parameter description

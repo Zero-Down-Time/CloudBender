@@ -21,4 +21,4 @@ test_upload: $(PACKAGE_FILE)
 	twine upload --repository-url https://test.pypi.org/legacy/ dist/cloudbender-*.whl
 
 upload: $(PACKAGE_FILE)
-	twine upload dist/cloudbender-*.whl
+	twine upload --repository-url https://upload.pypi.org/legacy/ dist/cloudbender-*.whl

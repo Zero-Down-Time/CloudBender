@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.8
+- Remove support for FortyTwo legacy mode as AWS now behaves as it should
+- Add support for embedded custom output yaml format and removed hardcoded kubezero output template
+
 ## 0.9.7
 - CloudBender now requires Python >= 3.7
 - drop oyaml requirement
