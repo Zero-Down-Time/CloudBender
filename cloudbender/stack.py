@@ -15,7 +15,7 @@ from .utils import dict_merge, search_refs, ensure_dir, get_s3_url
 from .connection import BotoConnection
 from .jinja import JinjaEnv, read_config_file
 from . import __version__
-from .exceptions import ParameterNotFound, ParameterIllegalValue
+from .exceptions import ParameterNotFound, ParameterIllegalValue, ChecksumError
 from .hooks import exec_hooks
 
 import cfnlint.core
@@ -207,6 +207,20 @@ class Stack(object):
         except KeyError:
             pass
 
+        # Get checksum
+        if not self.md5:
+            try:
+                self.md5 = self.cfn_data['Metadata']['Template']['Hash']
+
+                # Verify embedded md5 hash
+                source_cfn = re.sub('Hash: [0-9a-f]{32}', 'Hash: __HASH__', self.cfn_template)
+                our_md5 = hashlib.md5(source_cfn.encode('utf-8')).hexdigest()
+                if (our_md5 != self.md5):
+                    raise ChecksumError("Template hash checksum mismatch! Expected: {} Got: {}".format(self.md5, our_md5)) from None
+
+            except KeyError:
+                raise ChecksumError("Template missing Hash checksum!") from None
+
         # Add CloudBender dependencies
         include = []
         search_refs(self.cfn_data, include, self.mode)
@@ -315,6 +329,7 @@ class Stack(object):
 
             self.cfn_data = yaml.load(self.cfn_template, Loader=SafeLoaderIgnoreUnknown)
             self._parse_metadata()
+
         else:
             logger.debug('Using cached cfn template %s.', self.stackname)
 
@@ -356,8 +371,10 @@ class Stack(object):
         if len(matches):
             for match in matches:
                 logger.error(formatter._format(match))
+            return 1
         else:
             logger.info("Passed.")
+            return 0
 
     def get_outputs(self, include='.*', values=False):
         """ gets outputs of the stack """
@@ -766,6 +783,10 @@ class Stack(object):
             # so we need the region, AWS as usual
             (bucket, path) = get_s3_url(self.template_bucket_url, self.rel_path, self.stackname + ".yaml")
             bucket_region = self.connection_manager.call('s3', 'get_bucket_location', {'Bucket': bucket}, profile=self.profile, region=self.region)['LocationConstraint']
+            # If bucket is in us-east-1 AWS returns 'none' cause reasons grrr
+            if not bucket_region:
+                bucket_region = 'us-east-1'
+
             kwargs['TemplateURL'] = 'https://{}.s3.{}.amazonaws.com/{}'.format(bucket, bucket_region, path)
         else:
             kwargs['TemplateBody'] = self.cfn_template

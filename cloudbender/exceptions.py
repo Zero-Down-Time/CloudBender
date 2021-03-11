@@ -12,3 +12,7 @@ class InvalidProjectDir(Exception):
 
 class InvalidHook(Exception):
     """My documentation"""
+
+
+class ChecksumError(Exception):
+    """My documentation"""

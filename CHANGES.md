@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.9
+- Add workaround for inconsistent AWS API S3 GetBucketLocation
+- validate now exits with non-zero exit code if valiation of any template failed
+- the embedded md5 hash in templates are now verified reading the template
+
 ## 0.9.8
 - Remove support for FortyTwo legacy mode as AWS now behaves as it should
 - Add support for embedded custom output yaml format and removed hardcoded kubezero output template
