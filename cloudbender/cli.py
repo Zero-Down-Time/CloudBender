@@ -78,7 +78,9 @@ def validate(cb, stack_names, multi):
     stacks = _find_stacks(cb, stack_names, multi)
 
     for s in stacks:
-        s.validate()
+        ret = s.validate()
+        if ret:
+            sys.exit(ret)
 
 
 @click.command()
