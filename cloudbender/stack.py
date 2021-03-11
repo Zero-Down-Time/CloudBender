@@ -109,7 +109,7 @@ class Stack(object):
         if 'options' in _config:
             self.options = dict_merge(self.options, _config['options'])
 
-        if 'Mode' in self.options:
+        if 'Mode' in self.options and self.options['Mode'] == 'Piped':
             self.mode = self.options['Mode']
 
         if 'StoreOutputs' in self.options and self.options['StoreOutputs']:
@@ -346,8 +346,13 @@ class Stack(object):
 
         (args, filenames, formatter) = cfnlint.core.get_args_filenames(lint_args)
         (template, rules, matches) = cfnlint.core.get_template_rules(filename, args)
+
+        region = self.region
+        if region == 'global':
+            region = 'us-east-1'
+
         if not matches:
-            matches.extend(cfnlint.core.run_checks(filename, template, rules, [self.region]))
+            matches.extend(cfnlint.core.run_checks(filename, template, rules, [region]))
         if len(matches):
             for match in matches:
                 logger.error(formatter._format(match))
