@@ -3,8 +3,6 @@ import copy
 import logging
 import re
 
-logger = logging.getLogger(__name__)
-
 
 def dict_merge(a, b):
     """ Deep merge to allow proper inheritance for config files"""
@@ -30,7 +28,6 @@ def ensure_dir(path):
     """Creates dir if it does not already exist."""
     if not os.path.exists(path):
         os.makedirs(path)
-        logger.debug('Created directory: %s', path)
 
 
 def setup_logging(debug):

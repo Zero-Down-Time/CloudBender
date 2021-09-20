@@ -57,7 +57,7 @@ setup(
     package_data={ 'cloudbender': ['templates/*.md'], },
     include_package_data=True,
     entry_points={'console_scripts': [ "cloudbender = cloudbender.cli:cli" ]},
-    install_requires=['boto3', 'Jinja2', 'click', 'cfn-lint>=0.34', 'pyminifier'],
+    install_requires=['boto3', 'Jinja2', 'click', 'cfn-lint>=0.34', 'pyminifier', 'pulumi'],
     tests_require=["pytest-cov", "moto", "mock", 'pytest'],
     cmdclass={"test": PyTest},
     classifiers=[

@@ -31,8 +31,13 @@ class CloudBender(object):
 
         # Read top level config.yaml and extract CloudBender CTX
         _config = read_config_file(self.ctx['config_path'].joinpath('config.yaml'))
+
+        # Legacy naming
         if _config and _config.get('CloudBender'):
             self.ctx.update(_config.get('CloudBender'))
+
+        if _config and _config.get('cloudbender'):
+            self.ctx.update(_config.get('cloudbender'))
 
         # Make sure all paths are abs
         for k, v in self.ctx.items():

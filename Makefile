@@ -1,5 +1,5 @@
 VERSION ?= $(shell grep '__version__' cloudbender/__init__.py | cut -d' ' -f3 | cut -d'-' -f1 | sed -e 's/"//g')
-PACKAGE_FILE := dist/cloudbender-$(VERSION)-py2.py3-none-any.whl
+PACKAGE_FILE := dist/cloudbender-$(VERSION).py3-none-any.whl
 
 .PHONY: test build test_upload upload all
 

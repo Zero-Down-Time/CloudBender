@@ -1,5 +1,6 @@
 boto3
-Jinja2
+Jinja2<3
 click
 pyminifier
 cfn-lint>=0.34
+pulumi
