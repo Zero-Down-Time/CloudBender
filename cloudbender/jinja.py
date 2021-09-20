@@ -9,8 +9,6 @@ import subprocess
 import sys
 
 import jinja2
-from jinja2.utils import missing, object_type_repr
-from jinja2._compat import string_types
 from jinja2.filters import make_attrgetter
 from jinja2.runtime import Undefined
 
@@ -157,36 +155,10 @@ def inline_yaml(block):
     return yaml.safe_load(block)
 
 
-class SilentUndefined(jinja2.Undefined):
-    '''
-    Log warning for undefiend but continue
-    '''
-    def _fail_with_undefined_error(self, *args, **kwargs):
-        if self._undefined_hint is None:
-            if self._undefined_obj is missing:
-                hint = '%r is undefined' % self._undefined_name
-            elif not isinstance(self._undefined_name, string_types):
-                hint = '%s has no element %r' % (
-                    object_type_repr(self._undefined_obj),
-                    self._undefined_name
-                )
-            else:
-                hint = '%r has no attribute %r' % (
-                    object_type_repr(self._undefined_obj),
-                    self._undefined_name
-                )
-        else:
-            hint = self._undefined_hint
-
-        logger.warning("Undefined variable: {}".format(hint))
-        return ''
-
-
 def JinjaEnv(template_locations=[]):
     jenv = jinja2.Environment(trim_blocks=True,
                               lstrip_blocks=True,
                               extensions=['jinja2.ext.loopcontrols', 'jinja2.ext.do'])
-#                              undefined=SilentUndefined,
 
     if template_locations:
         jinja_loaders = []

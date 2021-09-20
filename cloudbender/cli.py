@@ -36,7 +36,7 @@ def cli(ctx, debug, directory):
     try:
         cb = CloudBender(directory)
     except InvalidProjectDir as e:
-        print(e)
+        logger.error(e)
         sys.exit(1)
 
     cb.read_config()
@@ -50,7 +50,7 @@ def cli(ctx, debug, directory):
 @click.option("--multi", is_flag=True, help="Allow more than one stack to match")
 @click.pass_obj
 def render(cb, stack_names, multi):
-    """ Renders template and its parameters """
+    """ Renders template and its parameters - CFN only"""
 
     stacks = _find_stacks(cb, stack_names, multi)
     _render(stacks)
@@ -74,7 +74,7 @@ def sync(cb, stack_names, multi):
 @click.option("--multi", is_flag=True, help="Allow more than one stack to match")
 @click.pass_obj
 def validate(cb, stack_names, multi):
-    """ Validates already rendered templates using cfn-lint """
+    """ Validates already rendered templates using cfn-lint - CFN only"""
     stacks = _find_stacks(cb, stack_names, multi)
 
     for s in stacks:
@@ -122,11 +122,65 @@ def create_docs(cb, stack_names, multi, graph):
 @click.argument("change_set_name")
 @click.pass_obj
 def create_change_set(cb, stack_name, change_set_name):
-    """ Creates a change set for an existing stack """
+    """ Creates a change set for an existing stack - CFN only"""
     stacks = _find_stacks(cb, [stack_name])
 
     for s in stacks:
         s.create_change_set(change_set_name)
+
+
+@click.command()
+@click.argument("stack_name")
+@click.pass_obj
+def refresh(cb, stack_name):
+    """ Refreshes Pulumi stack / Drift detection """
+    stacks = _find_stacks(cb, [stack_name])
+
+    for s in stacks:
+        if s.mode == 'pulumi':
+            s.refresh()
+        else:
+            logger.info('{} uses Cloudformation, refresh skipped.'.format(s.stackname))
+
+
+@click.command()
+@click.argument("stack_name")
+@click.argument("key")
+@click.argument("value")
+@click.option("--secret", is_flag=True, help="Value is a secret")
+@click.pass_obj
+def set_config(cb, stack_name, key, value, secret=False):
+    """ Sets a config value, encrypts with stack key if secret """
+    stacks = _find_stacks(cb, [stack_name])
+
+    for s in stacks:
+        s.set_config(key, value, secret)
+
+
+@click.command()
+@click.argument("stack_name")
+@click.argument("key")
+@click.pass_obj
+def get_config(cb, stack_name, key):
+    """ Get a config value, decrypted if secret """
+    stacks = _find_stacks(cb, [stack_name])
+
+    for s in stacks:
+        s.get_config(key)
+
+
+@click.command()
+@click.argument("stack_name")
+@click.pass_obj
+def preview(cb, stack_name):
+    """ Preview of Pulumi stack up operation """
+    stacks = _find_stacks(cb, [stack_name])
+
+    for s in stacks:
+        if s.mode == 'pulumi':
+            s.preview()
+        else:
+            logger.warning('{} uses Cloudformation, use create-change-set for previews.'.format(s.stackname))
 
 
 @click.command()
@@ -175,6 +229,10 @@ def sort_stacks(cb, stacks):
 
     data = {}
     for s in stacks:
+        if s.mode == 'pulumi':
+            data[s.id] = set()
+            continue
+
         # To resolve dependencies we have to read each template
         s.read_template_file()
         deps = []
@@ -193,8 +251,10 @@ def sort_stacks(cb, stacks):
     for k, v in data.items():
         v.discard(k)
 
-    extra_items_in_deps = functools.reduce(set.union, data.values()) - set(data.keys())
-    data.update({item: set() for item in extra_items_in_deps})
+    if data:
+        extra_items_in_deps = functools.reduce(set.union, data.values()) - set(data.keys())
+        data.update({item: set() for item in extra_items_in_deps})
+
     while True:
         ordered = set(item for item, dep in data.items() if not dep)
         if not ordered:
@@ -234,8 +294,11 @@ def _find_stacks(cb, stack_names, multi=False):
 def _render(stacks):
     """ Utility function to reuse code between tasks """
     for s in stacks:
-        s.render()
-        s.write_template_file()
+        if s.mode != 'pulumi':
+            s.render()
+            s.write_template_file()
+        else:
+            logger.info('{} uses Pulumi, render skipped.'.format(s.stackname))
 
 
 def _provision(cb, stacks):
@@ -264,6 +327,10 @@ cli.add_command(clean)
 cli.add_command(create_change_set)
 cli.add_command(outputs)
 cli.add_command(create_docs)
+cli.add_command(refresh)
+cli.add_command(preview)
+cli.add_command(set_config)
+cli.add_command(get_config)
 
 if __name__ == '__main__':
     cli(obj={})

@@ -5,6 +5,7 @@ import yaml
 import time
 import pathlib
 import pprint
+import pulumi
 
 from datetime import datetime, timedelta
 from dateutil.tz import tzutc
@@ -16,16 +17,14 @@ from .connection import BotoConnection
 from .jinja import JinjaEnv, read_config_file
 from . import __version__
 from .exceptions import ParameterNotFound, ParameterIllegalValue, ChecksumError
-from .hooks import exec_hooks
+from .hooks import exec_hooks, pulumi_ws
+from .pulumi import pulumi_init
 
 import cfnlint.core
 import cfnlint.template
 import cfnlint.graph
 
-try:
-    import importlib.resources as pkg_resources
-except ImportError:
-    import importlib_resources as pkg_resources
+import importlib.resources as pkg_resources
 from . import templates
 
 import logging
@@ -54,7 +53,7 @@ class Stack(object):
         self.outputs = {}
         self.options = {}
         self.region = 'global'
-        self.profile = ''
+        self.profile = 'default'
         self.onfailure = 'DELETE'
         self.notfication_sns = []
 
@@ -75,6 +74,8 @@ class Stack(object):
         self.default_lock = None
         self.multi_delete = True
         self.template_bucket_url = None
+        self.work_dir = None
+        self.pulumi = {}
 
     def dump_config(self):
         logger.debug("<Stack {}: {}>".format(self.id, pprint.pformat(vars(self))))
@@ -86,6 +87,7 @@ class Stack(object):
         self.tags.update(sg_config.get('tags', {}))
         self.parameters.update(sg_config.get('parameters', {}))
         self.options.update(sg_config.get('options', {}))
+        self.pulumi.update(sg_config.get('pulumi', {}))
 
         # by default inherit parent group settings
         for p in ['region', 'profile', 'notfication_sns', 'template_bucket_url']:
@@ -98,7 +100,7 @@ class Stack(object):
             if p in _config:
                 setattr(self, p, _config[p])
 
-        for p in ["parameters", "tags"]:
+        for p in ["parameters", "tags", "pulumi"]:
             if p in _config:
                 setattr(self, p, dict_merge(getattr(self, p), _config[p]))
 
@@ -109,7 +111,7 @@ class Stack(object):
         if 'options' in _config:
             self.options = dict_merge(self.options, _config['options'])
 
-        if 'Mode' in self.options and self.options['Mode'] == 'Piped':
+        if 'Mode' in self.options:
             self.mode = self.options['Mode']
 
         if 'StoreOutputs' in self.options and self.options['StoreOutputs']:
@@ -379,24 +381,29 @@ class Stack(object):
     def get_outputs(self, include='.*', values=False):
         """ gets outputs of the stack """
 
-        self.read_template_file()
-        try:
-            stacks = self.connection_manager.call(
-                "cloudformation",
-                "describe_stacks",
-                {'StackName': self.stackname},
-                profile=self.profile, region=self.region)['Stacks']
+        if self.mode == 'pulumi':
+            stack = pulumi_init(self)
+            self.outputs = stack.outputs()
 
+        else:
+            self.read_template_file()
             try:
-                for output in stacks[0]['Outputs']:
-                    self.outputs[output['OutputKey']] = output['OutputValue']
-                logger.debug("Stack outputs for {} in {}: {}".format(self.stackname, self.region, self.outputs))
-            except KeyError:
-                pass
+                stacks = self.connection_manager.call(
+                    "cloudformation",
+                    "describe_stacks",
+                    {'StackName': self.stackname},
+                    profile=self.profile, region=self.region)['Stacks']
 
-        except ClientError:
-            logger.warn("Could not get outputs of {}".format(self.stackname))
-            pass
+                try:
+                    for output in stacks[0]['Outputs']:
+                        self.outputs[output['OutputKey']] = output['OutputValue']
+                    logger.debug("Stack outputs for {} in {}: {}".format(self.stackname, self.region, self.outputs))
+                except KeyError:
+                    pass
+
+            except ClientError:
+                logger.warn("Could not get outputs of {}".format(self.stackname))
+                pass
 
         if self.outputs:
             logger.info('{} {} Outputs:\n{}'.format(self.region, self.stackname, pprint.pformat(self.outputs, indent=2)))
@@ -550,33 +557,45 @@ class Stack(object):
         # Return dict of explicitly set parameters
         return _found
 
+    @pulumi_ws
     @exec_hooks
     def create(self):
         """Creates a stack """
 
-        # Prepare parameters
-        self.resolve_parameters()
+        if self.mode == 'pulumi':
+            stack = pulumi_init(self)
+            stack.up(on_output=self._log_pulumi)
 
-        logger.info('Creating {0} {1}'.format(self.region, self.stackname))
-        kwargs = {'StackName': self.stackname,
-                  'Parameters': self.cfn_parameters,
-                  'OnFailure': self.onfailure,
-                  'NotificationARNs': self.notfication_sns,
-                  'Tags': [{"Key": str(k), "Value": str(v)} for k, v in self.tags.items()],
-                  'Capabilities': ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM', 'CAPABILITY_AUTO_EXPAND']}
-        kwargs = self._add_template_arg(kwargs)
+        else:
+            # Prepare parameters
+            self.resolve_parameters()
 
-        self.aws_stackid = self.connection_manager.call(
-            'cloudformation', 'create_stack', kwargs, profile=self.profile, region=self.region)
+            logger.info('Creating {0} {1}'.format(self.region, self.stackname))
+            kwargs = {'StackName': self.stackname,
+                      'Parameters': self.cfn_parameters,
+                      'OnFailure': self.onfailure,
+                      'NotificationARNs': self.notfication_sns,
+                      'Tags': [{"Key": str(k), "Value": str(v)} for k, v in self.tags.items()],
+                      'Capabilities': ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM', 'CAPABILITY_AUTO_EXPAND']}
+            kwargs = self._add_template_arg(kwargs)
 
-        status = self._wait_for_completion()
-        self.get_outputs()
+            self.aws_stackid = self.connection_manager.call(
+                'cloudformation', 'create_stack', kwargs, profile=self.profile, region=self.region)
 
-        return status
+            status = self._wait_for_completion()
+            self.get_outputs()
 
+            return status
+
+    @pulumi_ws
     @exec_hooks
     def update(self):
         """Updates an existing stack """
+
+        # We cannot migrate directly so bail out if CFN stack still exists
+        if self.mode == 'pulumi':
+            logger.error("Cloudformation stack {} still exists, cannot use Pulumi!".format(self.stackname))
+            return
 
         # Prepare parameters
         self.resolve_parameters()
@@ -605,17 +624,81 @@ class Stack(object):
 
         return status
 
+    @pulumi_ws
     @exec_hooks
     def delete(self):
-        """Deletes a stack """
+        """ Deletes a stack """
 
         logger.info('Deleting {0} {1}'.format(self.region, self.stackname))
+
+        if self.mode == 'pulumi':
+            stack = pulumi_init(self)
+            stack.destroy(on_output=self._log_pulumi)
+
+            return
+
         self.aws_stackid = self.connection_manager.call(
             'cloudformation', 'delete_stack', {'StackName': self.stackname},
             profile=self.profile, region=self.region)
 
         status = self._wait_for_completion()
         return status
+
+    @pulumi_ws
+    def refresh(self):
+        """ Refreshes a Pulumi stack """
+
+        stack = pulumi_init(self)
+        stack.refresh(on_output=self._log_pulumi)
+
+        return
+
+    @pulumi_ws
+    def preview(self):
+        """ Preview a Pulumi stack up operation"""
+
+        stack = pulumi_init(self)
+        stack.preview(on_output=self._log_pulumi)
+
+        return
+
+    @pulumi_ws
+    def set_config(self, key, value, secret):
+        """ Set a config or secret """
+
+        stack = pulumi_init(self)
+        stack.set_config(key, pulumi.automation.ConfigValue(value, secret))
+
+        # Store salt or key and encrypted value in CloudBender stack config
+        settings = None
+        pulumi_settings = stack.workspace.stack_settings(stack.name)._serialize()
+
+        with open(self.path, "r") as file:
+            settings = yaml.safe_load(file)
+
+            try:
+                if 'pulumi' not in settings:
+                    settings['pulumi'] = {}
+                settings['pulumi']['encryptionsalt'] = pulumi_settings['encryptionsalt']
+                settings['pulumi']['encryptedkey'] = pulumi_settings['encryptedkey']
+            except KeyError:
+                pass
+
+            if 'parameters' not in settings:
+                settings['parameters'] = {}
+            settings['parameters'][key] = pulumi_settings['config']['{}:{}'.format(self.parameters['Conglomerate'], key)]
+
+        with open(self.path, "w") as file:
+            yaml.dump(settings, stream=file)
+
+        return
+
+    @pulumi_ws
+    def get_config(self, key):
+        """ Get a config or secret """
+
+        stack = pulumi_init(self)
+        print(stack.get_config(key).value)
 
     def create_change_set(self, change_set_name):
         """ Creates a Change Set with the name ``change_set_name``.  """
@@ -792,3 +875,6 @@ class Stack(object):
             kwargs['TemplateBody'] = self.cfn_template
 
         return kwargs
+
+    def _log_pulumi(self, text):
+        logger.info(" ".join([self.region, self.stackname, text]))
