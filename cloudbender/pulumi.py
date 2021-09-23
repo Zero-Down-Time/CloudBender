@@ -3,6 +3,7 @@ import os
 import re
 import shutil
 import importlib
+import pkg_resources
 import pulumi
 
 import logging
@@ -64,12 +65,21 @@ def pulumi_init(stack):
     except KeyError:
         raise KeyError('Missing Pulumi securityProvider setting !')
 
+    # Set tag for stack file name and version
+    _tags = stack.tags
+    try:
+        _version = _stack.VERSION
+    except AttributeError:
+        _version = 'undefined'
+
+    _tags['zero-downtime.net/cloudbender'] = '{}:{}'.format(os.path.basename(_stack.__file__), _version)
+
     _config = {
         "aws:region": stack.region,
         "aws:profile": stack.profile,
-        "aws:defaultTags": {"tags": stack.tags},
+        "aws:defaultTags": {"tags": _tags},
         "zdt:region": stack.region,
-        "zdt:awsAccount": account_id,
+        "zdt:awsAccountId": account_id,
     }
 
     # inject all parameters as config in the <Conglomerate> namespace
@@ -95,6 +105,6 @@ def pulumi_init(stack):
         secrets_provider=secrets_provider)
 
     stack = pulumi.automation.create_or_select_stack(stack_name=pulumi_stackname, project_name=project_name, program=_stack.pulumi_program, opts=ws_opts)
-    stack.workspace.install_plugin("aws", "4.19.0")
+    stack.workspace.install_plugin("aws", pkg_resources.get_distribution("pulumi_aws").version)
 
     return stack
