@@ -676,13 +676,13 @@ class Stack(object):
         with open(self.path, "r") as file:
             settings = yaml.safe_load(file)
 
-            try:
-                if 'pulumi' not in settings:
-                    settings['pulumi'] = {}
+            if 'pulumi' not in settings:
+                settings['pulumi'] = {}
+
+            if 'encryptionsalt' in pulumi_settings:
                 settings['pulumi']['encryptionsalt'] = pulumi_settings['encryptionsalt']
+            if 'encryptedkey' in pulumi_settings:
                 settings['pulumi']['encryptedkey'] = pulumi_settings['encryptedkey']
-            except KeyError:
-                pass
 
             if 'parameters' not in settings:
                 settings['parameters'] = {}
@@ -877,4 +877,7 @@ class Stack(object):
         return kwargs
 
     def _log_pulumi(self, text):
-        logger.info(" ".join([self.region, self.stackname, text]))
+        # Remove some duplicated noise
+        text = re.sub('pulumi:pulumi:Stack {}-{}( running)?'.format(self.parameters['Conglomerate'], self.stackname), '', text)
+        if text:
+            logger.info(" ".join([self.region, self.stackname, text]))

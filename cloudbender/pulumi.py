@@ -45,7 +45,11 @@ def pulumi_init(stack):
 
     # Remove stacknameprefix if equals Conglomerate as Pulumi implicitly prefixes project_name
     pulumi_stackname = re.sub(r'^' + project_name + '-?', '', stack.stackname)
-    pulumi_backend = '{}/{}/{}'.format(stack.pulumi['backend'], project_name, stack.region)
+    try:
+        pulumi_backend = '{}/{}/{}'.format(stack.pulumi['backend'], project_name, stack.region)
+
+    except KeyError:
+        raise KeyError('Missing pulumi.backend setting !')
 
     account_id = stack.connection_manager.call('sts', 'get_caller_identity', profile=stack.profile, region=stack.region)['Account']
     # Ugly hack as Pulumi currently doesnt support MFA_TOKENs during role assumptions
@@ -55,6 +59,7 @@ def pulumi_init(stack):
 
     os.environ['AWS_ACCESS_KEY_ID'] = stack.connection_manager._sessions[(stack.profile, stack.region)].get_credentials().access_key
     os.environ['AWS_SECRET_ACCESS_KEY'] = stack.connection_manager._sessions[(stack.profile, stack.region)].get_credentials().secret_key
+    os.environ['AWS_DEFAULT_REGION'] = stack.region
 
     # Secrets provider
     try:
@@ -63,7 +68,8 @@ def pulumi_init(stack):
             raise ValueError('Missing PULUMI_CONFIG_PASSPHRASE environment variable!')
 
     except KeyError:
-        raise KeyError('Missing Pulumi securityProvider setting !')
+        logger.warning('Missing pulumi.secretsProvider setting, secrets disabled !')
+        secrets_provider = None
 
     # Set tag for stack file name and version
     _tags = stack.tags
