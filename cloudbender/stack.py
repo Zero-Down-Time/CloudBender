@@ -877,7 +877,6 @@ class Stack(object):
         return kwargs
 
     def _log_pulumi(self, text):
-        # Remove some duplicated noise
-        text = re.sub('pulumi:pulumi:Stack {}-{}( running)?'.format(self.parameters['Conglomerate'], self.stackname), '', text)
-        if text:
+        text = re.sub(r'pulumi:pulumi:Stack\s*{}-{}\s*'.format(self.parameters['Conglomerate'], self.stackname), '', text)
+        if text and not text.isspace():
             logger.info(" ".join([self.region, self.stackname, text]))
