@@ -18,6 +18,7 @@ test:
 
 clean:
 	rm -rf .cache build .coverage .eggs cloudbender.egg-info .pytest_cache dist
+	podman rmi -f $(TAG)
 
 build: $(PACKAGE_FILE)
 
