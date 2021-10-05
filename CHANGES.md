@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.1
+- First official release supporting for Pulumi stacks
+- Dockerfile and Alpine based public images provided incl. Pulumi binaries and podman for docker tasks
+
 ## 0.9.9
 - Add workaround for inconsistent AWS API S3 GetBucketLocation
 - validate now exits with non-zero exit code if valiation of any template failed
