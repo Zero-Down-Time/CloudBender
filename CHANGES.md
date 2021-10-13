@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.10.2
+- Optionally skip all `sops` operations when `DISABLE_SOPS` environment variable it set
+
 ## 0.10.1
 - First official release supporting for Pulumi stacks
 - Dockerfile and Alpine based public images provided incl. Pulumi binaries and podman for docker tasks
