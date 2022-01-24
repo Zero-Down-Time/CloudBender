@@ -156,8 +156,10 @@ def inline_yaml(block):
 
 
 def JinjaEnv(template_locations=[]):
+    LoggingUndefined = jinja2.make_logging_undefined(logger=logger, base=Undefined)
     jenv = jinja2.Environment(trim_blocks=True,
                               lstrip_blocks=True,
+                              undefined=LoggingUndefined,
                               extensions=['jinja2.ext.loopcontrols', 'jinja2.ext.do'])
 
     if template_locations:
