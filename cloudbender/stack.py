@@ -166,6 +166,8 @@ class Stack(object):
     Description: Project / Namespace this stack is part of
 """
             self.cfn_template = re.sub(_res, '', self.cfn_template)
+        else:
+            self.dependencies.add("CloudBender")
 
         include = []
         search_refs(self.cfn_data, include, self.mode)
