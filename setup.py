@@ -36,6 +36,7 @@ setup(
     name='cloudbender',
     setuptools_git_versioning={
         "enabled": True,
+        "dev_template": "{tag}-{ccount}",
     },
     setup_requires=["setuptools-git-versioning"],
     description='Toolset to render and manage AWS Cloudformation',
