@@ -12,23 +12,23 @@ else
   TRIVY_OPTS := client --remote ${TRIVY_REMOTE}
 endif
 
-.PHONY: test build test_upload upload all dev_setup docker
+.PHONY: pytest build test_upload upload all dev_setup pybuild
 
-all: test build
+all: pybuild pytest
 
 dev_setup:
-	pip install -r requirements.txt --user
+	pip install -r dev-requirements.txt --user
 
-test:
+pytest:
 	flake8 --ignore=E501 cloudbender tests
 	TEST=True pytest --log-cli-level=DEBUG
 
 clean:
 	rm -rf .cache build .coverage .eggs cloudbender.egg-info .pytest_cache dist
 
-build: $(PACKAGE_FILE)
-
-$(PACKAGE_FILE):
+pybuild:
+	# Set version in Python
+	sed -i cloudbender/__init__.py -e 's/__version__.*/__version__ = "$(TAG)"/'
 	python setup.py bdist_wheel --universal
 
 test_upload: $(PACKAGE_FILE)
@@ -37,8 +37,11 @@ test_upload: $(PACKAGE_FILE)
 upload: $(PACKAGE_FILE)
 	twine upload --repository-url https://upload.pypi.org/legacy/ dist/cloudbender-*.whl
 
-docker:
+build:
 	podman build --rm --squash-all -t $(REPOSITORY):$(TAG) -t $(REPOSITORY):latest .
+
+test:
+	@echo "Not implemented (yet)"
 
 push:
 	aws ecr-public get-login-password --region $(REGION) | podman login --username AWS --password-stdin $(REGISTRY)
