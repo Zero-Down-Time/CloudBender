@@ -1,9 +1,16 @@
-VERSION ?= $(shell grep '__version__' cloudbender/__init__.py | cut -d' ' -f3 | cut -d'-' -f1 | sed -e 's/"//g')
-PACKAGE_FILE := dist/cloudbender-$(VERSION).py3-none-any.whl
-
 REGISTRY := public.ecr.aws/zero-downtime
 REPOSITORY := cloudbender
-TAG := $(REPOSITORY):v$(VERSION)
+REGION := us-east-1
+
+# Parse version from latest git semver tag
+GTAG=$(shell git describe --tags --match v*.*.* 2>/dev/null || git rev-parse --short HEAD 2>/dev/null)
+TAG ?= $(shell echo $(GTAG) | awk -F '-' '{ print $$1 "-" $$2 }' | sed -e 's/-$$//')
+
+ifeq ($(TRIVY_REMOTE),)
+  TRIVY_OPTS := image
+else
+  TRIVY_OPTS := client --remote ${TRIVY_REMOTE}
+endif
 
 .PHONY: test build test_upload upload all dev_setup docker
 
@@ -18,7 +25,6 @@ test:
 
 clean:
 	rm -rf .cache build .coverage .eggs cloudbender.egg-info .pytest_cache dist
-	podman rmi -f $(TAG)
 
 build: $(PACKAGE_FILE)
 
@@ -32,13 +38,15 @@ upload: $(PACKAGE_FILE)
 	twine upload --repository-url https://upload.pypi.org/legacy/ dist/cloudbender-*.whl
 
 docker:
-	podman build --rm --squash-all --build-arg version=$(VERSION) -t $(TAG) .
+	podman build --rm --squash-all -t $(REPOSITORY):$(TAG) -t $(REPOSITORY):latest .
 
 push:
-	aws ecr-public get-login-password --region us-east-1 | podman login --username AWS --password-stdin $(REGISTRY)
-	podman tag $(TAG) $(REGISTRY)/$(TAG)
-	podman push $(REGISTRY)/$(TAG)
+	aws ecr-public get-login-password --region $(REGION) | podman login --username AWS --password-stdin $(REGISTRY)
+	podman tag $(REPOSITORY):latest $(REGISTRY)/$(REPOSITORY):$(TAG) $(REGISTRY)/$(REPOSITORY):latest
+	podman push $(REGISTRY)/$(REPOSITORY):$(TAG)
+	podman push $(REGISTRY)/$(REPOSITORY):latest
+	# Delete all untagged images
+	# aws ecr-public batch-delete-image --repository-name $(REPOSITORY) --region $(REGION) --image-ids $$(for image in $$(aws ecr-public describe-images --repository-name $(REPOSITORY) --region $(REGION) --output json | jq -r '.imageDetails[] | select(.imageTags | not ).imageDigest'); do echo -n "imageDigest=$$image "; done)
 
 scan:
-	podman system service&
-	sleep 3; trivy $(TAG)
+	trivy $(TRIVY_OPTS) $(REPOSITORY):$(TAG)
