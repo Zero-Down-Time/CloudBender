@@ -1,8 +1,13 @@
 import logging
+import pkg_resources
 
 __author__ = "Stefan Reimer"
 __email__ = "stefan@zero-downtimet.net"
-__version__ = "v0.10.3"
+
+try:
+    __version__ = pkg_resources.get_distribution("CloudBender").version
+except pkg_resources.DistributionNotFound:
+    __version__ = "devel"
 
 
 # Set up logging to ``/dev/null`` like a library is supposed to.

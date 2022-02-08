@@ -27,8 +27,6 @@ clean:
 	rm -rf .cache build .coverage .eggs cloudbender.egg-info .pytest_cache dist
 
 pybuild:
-	# Set version in Python
-	sed -i cloudbender/__init__.py -e 's/__version__.*/__version__ = "$(TAG)"/'
 	python setup.py bdist_wheel --universal
 
 test_upload: $(PACKAGE_FILE)

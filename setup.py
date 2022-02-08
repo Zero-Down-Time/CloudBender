@@ -6,17 +6,6 @@ from setuptools import setup
 from setuptools import find_packages
 from setuptools.command.test import test as TestCommand
 
-def find_version(filename):
-    """Uses re to pull out the assigned value to __version__ in filename."""
-
-    with io.open(filename, "r", encoding="utf-8") as version_file:
-        version_match = re.search(r'^__version__ = [\'"]([^\'"]*)[\'"]',
-                                  version_file.read(), re.M)
-    if version_match:
-        return version_match.group(1)
-    return "0.0-version-unknown"
-
-
 class PyTest(TestCommand):
     """TestCommand subclass to use pytest with setup.py test."""
 
@@ -45,7 +34,10 @@ else:
 
 setup(
     name='cloudbender',
-    version=find_version("cloudbender/__init__.py"),
+    setuptools_git_versioning={
+        "enabled": True,
+    },
+    setup_requires=["setuptools-git-versioning"],
     description='Toolset to render and manage AWS Cloudformation',
     python_requires='>=3.7',
     long_description=long_description,
