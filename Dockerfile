@@ -16,7 +16,8 @@ RUN apk add --no-cache \
     gcc \
     linux-headers \
     libffi-dev \
-    openssl-dev
+    openssl-dev \
+    git
 
 RUN if [ "$PULUMI_VERSION" = "latest" ]; then \
     curl -fsSL https://get.pulumi.com/ | sh; \
