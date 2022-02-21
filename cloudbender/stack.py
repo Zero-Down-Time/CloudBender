@@ -1,6 +1,7 @@
 import os
 import re
 import hashlib
+import json
 import yaml
 import time
 import pathlib
@@ -387,6 +388,11 @@ class Stack(object):
             stack = pulumi_init(self)
             self.outputs = stack.outputs()
 
+            # If secrets replace with clear values for now
+            for k in self.outputs.keys():
+                if self.outputs[k].secret:
+                    self.outputs[k] = self.outputs[k].value
+
         else:
             self.read_template_file()
             try:
@@ -661,6 +667,22 @@ class Stack(object):
 
         stack = pulumi_init(self)
         stack.preview(on_output=self._log_pulumi)
+
+        return
+
+    @pulumi_ws
+    def export(self, reset):
+        """ Exports a Pulumi stack """
+
+        stack = pulumi_init(self)
+        deployment = stack.export_stack()
+
+        if reset:
+            deployment.deployment.pop('pending_operations', None)
+            stack.import_stack(deployment)
+            logger.info('Removed all pending_operations from %s' % self.stackname)
+        else:
+            print(json.dumps(deployment.deployment))
 
         return
 
