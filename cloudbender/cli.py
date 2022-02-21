@@ -145,6 +145,21 @@ def refresh(cb, stack_name):
 
 @click.command()
 @click.argument("stack_name")
+@click.option("--reset", is_flag=True, help="All pending stack operations are removed and the stack will be re-imported")
+@click.pass_obj
+def export(cb, stack_name, reset=False):
+    """ Exports a Pulumi stack to repair state """
+    stacks = _find_stacks(cb, [stack_name])
+
+    for s in stacks:
+        if s.mode == 'pulumi':
+            s.export(reset)
+        else:
+            logger.info('{} uses Cloudformation, export skipped.'.format(s.stackname))
+
+
+@click.command()
+@click.argument("stack_name")
 @click.argument("key")
 @click.argument("value")
 @click.option("--secret", is_flag=True, help="Value is a secret")
@@ -331,6 +346,7 @@ cli.add_command(refresh)
 cli.add_command(preview)
 cli.add_command(set_config)
 cli.add_command(get_config)
+cli.add_command(export)
 
 if __name__ == '__main__':
     cli(obj={})
