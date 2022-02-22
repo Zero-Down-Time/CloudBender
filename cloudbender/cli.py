@@ -12,6 +12,7 @@ from .utils import setup_logging
 from .exceptions import InvalidProjectDir
 
 import logging
+
 logger = logging.getLogger(__name__)
 
 
@@ -27,8 +28,8 @@ def cli(ctx, debug, directory):
     if directory:
         if not os.path.isabs(directory):
             directory = os.path.normpath(os.path.join(os.getcwd(), directory))
-    elif os.getenv('CLOUDBENDER_PROJECT_ROOT'):
-        directory = os.getenv('CLOUDBENDER_PROJECT_ROOT')
+    elif os.getenv("CLOUDBENDER_PROJECT_ROOT"):
+        directory = os.getenv("CLOUDBENDER_PROJECT_ROOT")
     else:
         directory = os.getcwd()
 
@@ -50,7 +51,7 @@ def cli(ctx, debug, directory):
 @click.option("--multi", is_flag=True, help="Allow more than one stack to match")
 @click.pass_obj
 def render(cb, stack_names, multi):
-    """ Renders template and its parameters - CFN only"""
+    """Renders template and its parameters - CFN only"""
 
     stacks = _find_stacks(cb, stack_names, multi)
     _render(stacks)
@@ -61,7 +62,7 @@ def render(cb, stack_names, multi):
 @click.option("--multi", is_flag=True, help="Allow more than one stack to match")
 @click.pass_obj
 def sync(cb, stack_names, multi):
-    """ Renders template and provisions it right away """
+    """Renders template and provisions it right away"""
 
     stacks = _find_stacks(cb, stack_names, multi)
 
@@ -74,7 +75,7 @@ def sync(cb, stack_names, multi):
 @click.option("--multi", is_flag=True, help="Allow more than one stack to match")
 @click.pass_obj
 def validate(cb, stack_names, multi):
-    """ Validates already rendered templates using cfn-lint - CFN only"""
+    """Validates already rendered templates using cfn-lint - CFN only"""
     stacks = _find_stacks(cb, stack_names, multi)
 
     for s in stacks:
@@ -86,11 +87,17 @@ def validate(cb, stack_names, multi):
 @click.command()
 @click.argument("stack_names", nargs=-1)
 @click.option("--multi", is_flag=True, help="Allow more than one stack to match")
-@click.option("--include", default='.*', help="regex matching wanted outputs, default '.*'")
-@click.option("--values", is_flag=True, help="Only output values, most useful if only one outputs is returned")
+@click.option(
+    "--include", default=".*", help="regex matching wanted outputs, default '.*'"
+)
+@click.option(
+    "--values",
+    is_flag=True,
+    help="Only output values, most useful if only one outputs is returned",
+)
 @click.pass_obj
 def outputs(cb, stack_names, multi, include, values):
-    """ Prints all stack outputs """
+    """Prints all stack outputs"""
 
     stacks = _find_stacks(cb, stack_names, multi)
     for s in stacks:
@@ -110,7 +117,7 @@ def outputs(cb, stack_names, multi, include, values):
 @click.option("--graph", is_flag=True, help="Create Dot Graph file")
 @click.pass_obj
 def create_docs(cb, stack_names, multi, graph):
-    """ Parses all documentation fragments out of rendered templates creating docs/*.md file """
+    """Parses all documentation fragments out of rendered templates creating docs/*.md file"""
 
     stacks = _find_stacks(cb, stack_names, multi)
     for s in stacks:
@@ -122,7 +129,7 @@ def create_docs(cb, stack_names, multi, graph):
 @click.argument("change_set_name")
 @click.pass_obj
 def create_change_set(cb, stack_name, change_set_name):
-    """ Creates a change set for an existing stack - CFN only"""
+    """Creates a change set for an existing stack - CFN only"""
     stacks = _find_stacks(cb, [stack_name])
 
     for s in stacks:
@@ -133,29 +140,33 @@ def create_change_set(cb, stack_name, change_set_name):
 @click.argument("stack_name")
 @click.pass_obj
 def refresh(cb, stack_name):
-    """ Refreshes Pulumi stack / Drift detection """
+    """Refreshes Pulumi stack / Drift detection"""
     stacks = _find_stacks(cb, [stack_name])
 
     for s in stacks:
-        if s.mode == 'pulumi':
+        if s.mode == "pulumi":
             s.refresh()
         else:
-            logger.info('{} uses Cloudformation, refresh skipped.'.format(s.stackname))
+            logger.info("{} uses Cloudformation, refresh skipped.".format(s.stackname))
 
 
 @click.command()
 @click.argument("stack_name")
-@click.option("--reset", is_flag=True, help="All pending stack operations are removed and the stack will be re-imported")
+@click.option(
+    "--reset",
+    is_flag=True,
+    help="All pending stack operations are removed and the stack will be re-imported",
+)
 @click.pass_obj
 def export(cb, stack_name, reset=False):
-    """ Exports a Pulumi stack to repair state """
+    """Exports a Pulumi stack to repair state"""
     stacks = _find_stacks(cb, [stack_name])
 
     for s in stacks:
-        if s.mode == 'pulumi':
+        if s.mode == "pulumi":
             s.export(reset)
         else:
-            logger.info('{} uses Cloudformation, export skipped.'.format(s.stackname))
+            logger.info("{} uses Cloudformation, export skipped.".format(s.stackname))
 
 
 @click.command()
@@ -165,7 +176,7 @@ def export(cb, stack_name, reset=False):
 @click.option("--secret", is_flag=True, help="Value is a secret")
 @click.pass_obj
 def set_config(cb, stack_name, key, value, secret=False):
-    """ Sets a config value, encrypts with stack key if secret """
+    """Sets a config value, encrypts with stack key if secret"""
     stacks = _find_stacks(cb, [stack_name])
 
     for s in stacks:
@@ -177,7 +188,7 @@ def set_config(cb, stack_name, key, value, secret=False):
 @click.argument("key")
 @click.pass_obj
 def get_config(cb, stack_name, key):
-    """ Get a config value, decrypted if secret """
+    """Get a config value, decrypted if secret"""
     stacks = _find_stacks(cb, [stack_name])
 
     for s in stacks:
@@ -188,14 +199,18 @@ def get_config(cb, stack_name, key):
 @click.argument("stack_name")
 @click.pass_obj
 def preview(cb, stack_name):
-    """ Preview of Pulumi stack up operation """
+    """Preview of Pulumi stack up operation"""
     stacks = _find_stacks(cb, [stack_name])
 
     for s in stacks:
-        if s.mode == 'pulumi':
+        if s.mode == "pulumi":
             s.preview()
         else:
-            logger.warning('{} uses Cloudformation, use create-change-set for previews.'.format(s.stackname))
+            logger.warning(
+                "{} uses Cloudformation, use create-change-set for previews.".format(
+                    s.stackname
+                )
+            )
 
 
 @click.command()
@@ -203,7 +218,7 @@ def preview(cb, stack_name):
 @click.option("--multi", is_flag=True, help="Allow more than one stack to match")
 @click.pass_obj
 def provision(cb, stack_names, multi):
-    """ Creates or updates stacks or stack groups """
+    """Creates or updates stacks or stack groups"""
 
     stacks = _find_stacks(cb, stack_names, multi)
     _provision(cb, stacks)
@@ -214,7 +229,7 @@ def provision(cb, stack_names, multi):
 @click.option("--multi", is_flag=True, help="Allow more than one stack to match")
 @click.pass_obj
 def delete(cb, stack_names, multi):
-    """ Deletes stacks or stack groups """
+    """Deletes stacks or stack groups"""
     stacks = _find_stacks(cb, stack_names, multi)
 
     # Reverse steps
@@ -235,16 +250,16 @@ def delete(cb, stack_names, multi):
 @click.command()
 @click.pass_obj
 def clean(cb):
-    """ Deletes all previously rendered files locally """
+    """Deletes all previously rendered files locally"""
     cb.clean()
 
 
 def sort_stacks(cb, stacks):
-    """ Sort stacks by dependencies """
+    """Sort stacks by dependencies"""
 
     data = {}
     for s in stacks:
-        if s.mode == 'pulumi':
+        if s.mode == "pulumi":
             data[s.id] = set()
             continue
 
@@ -253,10 +268,14 @@ def sort_stacks(cb, stacks):
         deps = []
         for d in s.dependencies:
             # For now we assume deps are artifacts so we prepend them with our local profile and region to match stack.id
-            for dep_stack in cb.filter_stacks({'region': s.region, 'profile': s.profile, 'provides': d}):
+            for dep_stack in cb.filter_stacks(
+                {"region": s.region, "profile": s.profile, "provides": d}
+            ):
                 deps.append(dep_stack.id)
             # also look for global services
-            for dep_stack in cb.filter_stacks({'region': 'global', 'profile': s.profile, 'provides': d}):
+            for dep_stack in cb.filter_stacks(
+                {"region": "global", "profile": s.profile, "provides": d}
+            ):
                 deps.append(dep_stack.id)
 
         data[s.id] = set(deps)
@@ -267,7 +286,9 @@ def sort_stacks(cb, stacks):
         v.discard(k)
 
     if data:
-        extra_items_in_deps = functools.reduce(set.union, data.values()) - set(data.keys())
+        extra_items_in_deps = functools.reduce(set.union, data.values()) - set(
+            data.keys()
+        )
         data.update({item: set() for item in extra_items_in_deps})
 
     while True:
@@ -283,41 +304,46 @@ def sort_stacks(cb, stacks):
                     result.append(s)
         yield result
 
-        data = {item: (dep - ordered) for item, dep in data.items()
-                if item not in ordered}
+        data = {
+            item: (dep - ordered) for item, dep in data.items() if item not in ordered
+        }
     assert not data, "A cyclic dependency exists amongst %r" % data
 
 
 def _find_stacks(cb, stack_names, multi=False):
-    """ search stacks by name """
+    """search stacks by name"""
 
     stacks = []
     for s in stack_names:
         stacks = stacks + cb.resolve_stacks(s)
 
     if not multi and len(stacks) > 1:
-        logger.error('Found more than one stack matching name ({}). Please set --multi if that is what you want.'.format(', '.join(stack_names)))
+        logger.error(
+            "Found more than one stack matching name ({}). Please set --multi if that is what you want.".format(
+                ", ".join(stack_names)
+            )
+        )
         raise click.Abort()
 
     if not stacks:
-        logger.error('Cannot find stack matching: {}'.format(', '.join(stack_names)))
+        logger.error("Cannot find stack matching: {}".format(", ".join(stack_names)))
         raise click.Abort()
 
     return stacks
 
 
 def _render(stacks):
-    """ Utility function to reuse code between tasks """
+    """Utility function to reuse code between tasks"""
     for s in stacks:
-        if s.mode != 'pulumi':
+        if s.mode != "pulumi":
             s.render()
             s.write_template_file()
         else:
-            logger.info('{} uses Pulumi, render skipped.'.format(s.stackname))
+            logger.info("{} uses Pulumi, render skipped.".format(s.stackname))
 
 
 def _provision(cb, stacks):
-    """ Utility function to reuse code between tasks """
+    """Utility function to reuse code between tasks"""
     for step in sort_stacks(cb, stacks):
         if step:
             with ThreadPoolExecutor(max_workers=len(step)) as group:
@@ -348,5 +374,5 @@ cli.add_command(set_config)
 cli.add_command(get_config)
 cli.add_command(export)
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     cli(obj={})

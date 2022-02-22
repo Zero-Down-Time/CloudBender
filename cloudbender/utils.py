@@ -5,7 +5,7 @@ import re
 
 
 def dict_merge(a, b):
-    """ Deep merge to allow proper inheritance for config files"""
+    """Deep merge to allow proper inheritance for config files"""
     if not a:
         return b
 
@@ -36,16 +36,14 @@ def setup_logging(debug):
         logging.getLogger("botocore").setLevel(logging.INFO)
 
         formatter = logging.Formatter(
-            fmt="[%(asctime)s] %(name)s %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S"
+            fmt="[%(asctime)s] %(name)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
         )
     else:
         our_level = logging.INFO
         logging.getLogger("botocore").setLevel(logging.CRITICAL)
 
         formatter = logging.Formatter(
-            fmt="[%(asctime)s] %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S"
+            fmt="[%(asctime)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
         )
 
     log_handler = logging.StreamHandler()
@@ -57,8 +55,8 @@ def setup_logging(debug):
 
 
 def search_refs(template, attributes, mode):
-    """ Traverses a template and searches for any remote references and
-        adds them to the attributes set
+    """Traverses a template and searches for any remote references and
+    adds them to the attributes set
     """
     if isinstance(template, dict):
         for k, v in template.items():
@@ -70,7 +68,7 @@ def search_refs(template, attributes, mode):
             # CloudBender::StackRef
             if k == "CloudBender::StackRef":
                 try:
-                    attributes.append(v['StackTags']['Artifact'])
+                    attributes.append(v["StackTags"]["Artifact"])
                 except KeyError:
                     pass
 
@@ -91,11 +89,11 @@ def get_s3_url(url, *args):
     bucket = None
     path = None
 
-    m = re.match('^(s3://)?([^/]*)(/.*)?', url)
+    m = re.match("^(s3://)?([^/]*)(/.*)?", url)
     bucket = m[2]
     if m[3]:
-        path = m[3].lstrip('/')
+        path = m[3].lstrip("/")
 
     path = os.path.join(path, *args)
 
-    return(bucket, path)
+    return (bucket, path)

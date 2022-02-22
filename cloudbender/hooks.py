@@ -8,6 +8,7 @@ from functools import wraps
 from .exceptions import InvalidHook
 
 import logging
+
 logger = logging.getLogger(__name__)
 
 
@@ -40,7 +41,9 @@ def pulumi_ws(func):
     @wraps(func)
     def decorated(self, *args, **kwargs):
         # setup temp workspace
-        self.work_dir = tempfile.mkdtemp(dir=tempfile.gettempdir(), prefix="cloudbender-")
+        self.work_dir = tempfile.mkdtemp(
+            dir=tempfile.gettempdir(), prefix="cloudbender-"
+        )
 
         response = func(self, *args, **kwargs)
 
@@ -63,4 +66,4 @@ def cmd(stack, arguments):
         hook = subprocess.run(arguments, stdout=subprocess.PIPE)
         logger.info(hook.stdout.decode("utf-8"))
     except TypeError:
-        raise InvalidHook('Invalid argument {}'.format(arguments))
+        raise InvalidHook("Invalid argument {}".format(arguments))

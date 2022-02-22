@@ -13,19 +13,21 @@ class StackGroup(object):
         self.name = None
         self.ctx = ctx
         self.path = path
-        self.rel_path = path.relative_to(ctx['config_path'])
+        self.rel_path = path.relative_to(ctx["config_path"])
         self.config = {}
         self.sgs = []
         self.stacks = []
 
-        if self.rel_path == '.':
-            self.rel_path = ''
+        if self.rel_path == ".":
+            self.rel_path = ""
 
     def dump_config(self):
         for sg in self.sgs:
             sg.dump_config()
 
-        logger.debug("StackGroup {}: {}".format(self.rel_path, pprint.pformat(self.config)))
+        logger.debug(
+            "StackGroup {}: {}".format(self.rel_path, pprint.pformat(self.config))
+        )
 
         for s in self.stacks:
             s.dump_config()
@@ -35,7 +37,9 @@ class StackGroup(object):
             return None
 
         # First read config.yaml if present
-        _config = read_config_file(self.path.joinpath('config.yaml'), parent_config.get('variables', {}))
+        _config = read_config_file(
+            self.path.joinpath("config.yaml"), parent_config.get("variables", {})
+        )
 
         # Stack Group name if not explicit via config is derived from subfolder, or in case of root object the parent folder
         if "stackgroupname" in _config:
@@ -45,19 +49,25 @@ class StackGroup(object):
 
         # Merge config with parent config
         self.config = dict_merge(parent_config, _config)
-        stackname_prefix = self.config.get('stacknameprefix', '')
+        stackname_prefix = self.config.get("stacknameprefix", "")
 
         logger.debug("StackGroup {} added.".format(self.name))
 
         # Add stacks
-        stacks = [s for s in self.path.glob('*.yaml') if not s.name == "config.yaml"]
+        stacks = [s for s in self.path.glob("*.yaml") if not s.name == "config.yaml"]
         for stack_path in stacks:
-            stackname = stack_path.name.split('.')[0]
+            stackname = stack_path.name.split(".")[0]
             template = stackname
             if stackname_prefix:
                 stackname = stackname_prefix + stackname
 
-            new_stack = Stack(name=stackname, template=template, path=stack_path, rel_path=str(self.rel_path), ctx=self.ctx)
+            new_stack = Stack(
+                name=stackname,
+                template=template,
+                path=stack_path,
+                rel_path=str(self.rel_path),
+                ctx=self.ctx,
+            )
             new_stack.read_config(self.config)
             self.stacks.append(new_stack)
 
@@ -68,22 +78,24 @@ class StackGroup(object):
 
             self.sgs.append(sg)
 
-    def get_stacks(self, name=None, recursive=True, match_by='name'):
-        """ Returns [stack] matching stack_name or [all] """
+    def get_stacks(self, name=None, recursive=True, match_by="name"):
+        """Returns [stack] matching stack_name or [all]"""
         stacks = []
         if name:
             logger.debug("Looking for stack {} in group {}".format(name, self.name))
 
         for s in self.stacks:
             if name:
-                if match_by == 'name' and s.stackname != name:
+                if match_by == "name" and s.stackname != name:
                     continue
 
-                if match_by == 'path' and not s.path.match(name):
+                if match_by == "path" and not s.path.match(name):
                     continue
 
             if self.rel_path:
-                logger.debug("Found stack {} in group {}".format(s.stackname, self.rel_path))
+                logger.debug(
+                    "Found stack {} in group {}".format(s.stackname, self.rel_path)
+                )
             else:
                 logger.debug("Found stack {}".format(s.stackname))
             stacks.append(s)
@@ -96,14 +108,20 @@ class StackGroup(object):
 
         return stacks
 
-    def get_stackgroup(self, name=None, recursive=True, match_by='name'):
-        """ Returns stack group matching stackgroup_name or all if None """
-        if not name or (self.name == name and match_by == 'name') or (self.path.match(name) and match_by == 'path'):
+    def get_stackgroup(self, name=None, recursive=True, match_by="name"):
+        """Returns stack group matching stackgroup_name or all if None"""
+        if (
+            not name
+            or (self.name == name and match_by == "name")
+            or (self.path.match(name) and match_by == "path")
+        ):
             logger.debug("Found stack_group {}".format(self.name))
             return self
 
-        if name and self.name != 'config':
-            logger.debug("Looking for stack_group {} in group {}".format(name, self.name))
+        if name and self.name != "config":
+            logger.debug(
+                "Looking for stack_group {} in group {}".format(name, self.name)
+            )
 
         if recursive:
             for sg in self.sgs:

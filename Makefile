@@ -20,7 +20,7 @@ dev_setup:
 	pip install -r dev-requirements.txt --user
 
 pytest:
-	flake8 --ignore=E501 cloudbender tests
+	flake8 cloudbender tests
 	TEST=True pytest --log-cli-level=DEBUG
 
 clean:
