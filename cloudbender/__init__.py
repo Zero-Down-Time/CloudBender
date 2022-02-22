@@ -17,4 +17,4 @@ class NullHandler(logging.Handler):  # pragma: no cover
         pass
 
 
-logging.getLogger('cloudbender').addHandler(NullHandler())
+logging.getLogger("cloudbender").addHandler(NullHandler())

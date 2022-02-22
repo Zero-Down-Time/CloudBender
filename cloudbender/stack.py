@@ -29,6 +29,7 @@ import importlib.resources as pkg_resources
 from . import templates
 
 import logging
+
 logger = logging.getLogger(__name__)
 
 
@@ -53,16 +54,16 @@ class Stack(object):
         self.parameters = {}
         self.outputs = {}
         self.options = {}
-        self.region = 'global'
-        self.profile = 'default'
-        self.onfailure = 'DELETE'
+        self.region = "global"
+        self.profile = "default"
+        self.onfailure = "DELETE"
         self.notfication_sns = []
 
         self.id = (self.profile, self.region, self.stackname)
         self.aws_stackid = None
 
         self.md5 = None
-        self.mode = 'CloudBender'
+        self.mode = "CloudBender"
         self.provides = template
         self.cfn_template = None
         self.cfn_parameters = []
@@ -71,7 +72,12 @@ class Stack(object):
         self.status = None
         self.store_outputs = False
         self.dependencies = set()
-        self.hooks = {'post_create': [], 'post_update': [], 'pre_create': [], 'pre_update': []}
+        self.hooks = {
+            "post_create": [],
+            "post_update": [],
+            "pre_create": [],
+            "pre_update": [],
+        }
         self.default_lock = None
         self.multi_delete = True
         self.template_bucket_url = None
@@ -82,22 +88,32 @@ class Stack(object):
         logger.debug("<Stack {}: {}>".format(self.id, pprint.pformat(vars(self))))
 
     def read_config(self, sg_config={}):
-        """ reads stack config """
+        """reads stack config"""
 
         # First set various attributes based on parent stackgroup config
-        self.tags.update(sg_config.get('tags', {}))
-        self.parameters.update(sg_config.get('parameters', {}))
-        self.options.update(sg_config.get('options', {}))
-        self.pulumi.update(sg_config.get('pulumi', {}))
+        self.tags.update(sg_config.get("tags", {}))
+        self.parameters.update(sg_config.get("parameters", {}))
+        self.options.update(sg_config.get("options", {}))
+        self.pulumi.update(sg_config.get("pulumi", {}))
 
         # by default inherit parent group settings
-        for p in ['region', 'profile', 'notfication_sns', 'template_bucket_url']:
+        for p in ["region", "profile", "notfication_sns", "template_bucket_url"]:
             if p in sg_config:
                 setattr(self, p, sg_config[p])
 
         # now override stack specific settings
-        _config = read_config_file(self.path, sg_config.get('variables', {}))
-        for p in ["region", "stackname", "template", "default_lock", "multi_delete", "provides", "onfailure", "notification_sns", "template_bucket_url"]:
+        _config = read_config_file(self.path, sg_config.get("variables", {}))
+        for p in [
+            "region",
+            "stackname",
+            "template",
+            "default_lock",
+            "multi_delete",
+            "provides",
+            "onfailure",
+            "notification_sns",
+            "template_bucket_url",
+        ]:
             if p in _config:
                 setattr(self, p, _config[p])
 
@@ -106,25 +122,27 @@ class Stack(object):
                 setattr(self, p, dict_merge(getattr(self, p), _config[p]))
 
         # Inject Artifact if not explicitly set
-        if 'Artifact' not in self.tags:
-            self.tags['Artifact'] = self.provides
+        if "Artifact" not in self.tags:
+            self.tags["Artifact"] = self.provides
 
-        if 'options' in _config:
-            self.options = dict_merge(self.options, _config['options'])
+        if "options" in _config:
+            self.options = dict_merge(self.options, _config["options"])
 
-        if 'Mode' in self.options:
-            self.mode = self.options['Mode']
+        if "Mode" in self.options:
+            self.mode = self.options["Mode"]
 
-        if 'StoreOutputs' in self.options and self.options['StoreOutputs']:
+        if "StoreOutputs" in self.options and self.options["StoreOutputs"]:
             self.store_outputs = True
 
-        if 'dependencies' in _config:
-            for dep in _config['dependencies']:
+        if "dependencies" in _config:
+            for dep in _config["dependencies"]:
                 self.dependencies.add(dep)
 
         # Some sanity checks
         if self.onfailure not in ["DO_NOTHING", "ROLLBACK", "DELETE"]:
-            raise ParameterIllegalValue("onfailure must be one of DO_NOTHING | ROLLBACK | DELETE")
+            raise ParameterIllegalValue(
+                "onfailure must be one of DO_NOTHING | ROLLBACK | DELETE"
+            )
 
         logger.debug("Stack {} added.".format(self.id))
 
@@ -132,18 +150,22 @@ class Stack(object):
         """Renders the cfn jinja template for this stack"""
 
         template_metadata = {
-            'Template.Name': self.template,
-            'Template.Hash': "__HASH__",
-            'CloudBender.Version': __version__
+            "Template.Name": self.template,
+            "Template.Hash": "__HASH__",
+            "CloudBender.Version": __version__,
         }
-        _config = {'mode': self.mode, 'options': self.options, 'metadata': template_metadata}
+        _config = {
+            "mode": self.mode,
+            "options": self.options,
+            "metadata": template_metadata,
+        }
 
-        jenv = JinjaEnv(self.ctx['artifact_paths'])
-        jenv.globals['_config'] = _config
+        jenv = JinjaEnv(self.ctx["artifact_paths"])
+        jenv.globals["_config"] = _config
 
-        template = jenv.get_template('{0}{1}'.format(self.template, '.yaml.jinja'))
+        template = jenv.get_template("{0}{1}".format(self.template, ".yaml.jinja"))
 
-        logger.info('Rendering %s', template.filename)
+        logger.info("Rendering %s", template.filename)
 
         try:
             self.cfn_template = template.render(_config)
@@ -153,20 +175,26 @@ class Stack(object):
             if self.cfn_template:
                 _output = ""
                 for i, line in enumerate(self.cfn_template.splitlines(), start=1):
-                    _output = _output + '{}: {}\n'.format(i, line)
+                    _output = _output + "{}: {}\n".format(i, line)
                 logger.error(_output)
             raise e
 
-        if not re.search('CloudBender::', self.cfn_template) and not re.search('Iterate:', self.cfn_template):
-            logger.info("CloudBender not required -> removing Transform and Conglomerate parameter")
-            self.cfn_template = self.cfn_template.replace('Transform: [CloudBender]', '')
+        if not re.search("CloudBender::", self.cfn_template) and not re.search(
+            "Iterate:", self.cfn_template
+        ):
+            logger.info(
+                "CloudBender not required -> removing Transform and Conglomerate parameter"
+            )
+            self.cfn_template = self.cfn_template.replace(
+                "Transform: [CloudBender]", ""
+            )
 
             _res = """
   Conglomerate:
     Type: String
     Description: Project / Namespace this stack is part of
 """
-            self.cfn_template = re.sub(_res, '', self.cfn_template)
+            self.cfn_template = re.sub(_res, "", self.cfn_template)
         else:
             self.dependencies.add("CloudBender")
 
@@ -175,31 +203,38 @@ class Stack(object):
         if self.mode == "Piped" and len(include):
             _res = ""
             for attr in include:
-                _res = _res + """
+                _res = (
+                    _res
+                    + """
   {0}:
     Type: String
-    Description: Parameter to provide remote stack attribute {0}""".format(attr)
+    Description: Parameter to provide remote stack attribute {0}""".format(
+                        attr
+                    )
+                )
 
-            self.cfn_template = re.sub(r'Parameters:', r'Parameters:' + _res + '\n', self.cfn_template)
+            self.cfn_template = re.sub(
+                r"Parameters:", r"Parameters:" + _res + "\n", self.cfn_template
+            )
             logger.info("Piped mode: Added parameters for remote stack references")
 
         # Re-read updated template
         self.cfn_data = yaml.load(self.cfn_template, Loader=SafeLoaderIgnoreUnknown)
 
         # Check for empty top level Parameters, Outputs and Conditions and remove
-        for key in ['Parameters', 'Outputs', 'Conditions']:
+        for key in ["Parameters", "Outputs", "Conditions"]:
             if key in self.cfn_data and not self.cfn_data[key]:
                 del self.cfn_data[key]
-                self.cfn_template = self.cfn_template.replace('\n' + key + ":", '')
+                self.cfn_template = self.cfn_template.replace("\n" + key + ":", "")
 
         # Remove and condense multiple empty lines
-        self.cfn_template = re.sub(r'\n\s*\n', '\n\n', self.cfn_template)
-        self.cfn_template = re.sub(r'^\s*', '', self.cfn_template)
-        self.cfn_template = re.sub(r'\s*$', '', self.cfn_template)
+        self.cfn_template = re.sub(r"\n\s*\n", "\n\n", self.cfn_template)
+        self.cfn_template = re.sub(r"^\s*", "", self.cfn_template)
+        self.cfn_template = re.sub(r"\s*$", "", self.cfn_template)
 
         # set md5 last
-        self.md5 = hashlib.md5(self.cfn_template.encode('utf-8')).hexdigest()
-        self.cfn_template = self.cfn_template.replace('__HASH__', self.md5)
+        self.md5 = hashlib.md5(self.cfn_template.encode("utf-8")).hexdigest()
+        self.cfn_template = self.cfn_template.replace("__HASH__", self.md5)
 
         # Update internal data structures
         self._parse_metadata()
@@ -207,7 +242,7 @@ class Stack(object):
     def _parse_metadata(self):
         # Extract dependencies
         try:
-            for dep in self.cfn_data['Metadata']['CloudBender']['Dependencies']:
+            for dep in self.cfn_data["Metadata"]["CloudBender"]["Dependencies"]:
                 self.dependencies.add(dep)
         except KeyError:
             pass
@@ -215,13 +250,19 @@ class Stack(object):
         # Get checksum
         if not self.md5:
             try:
-                self.md5 = self.cfn_data['Metadata']['Template']['Hash']
+                self.md5 = self.cfn_data["Metadata"]["Template"]["Hash"]
 
                 # Verify embedded md5 hash
-                source_cfn = re.sub('Hash: [0-9a-f]{32}', 'Hash: __HASH__', self.cfn_template)
-                our_md5 = hashlib.md5(source_cfn.encode('utf-8')).hexdigest()
-                if (our_md5 != self.md5):
-                    raise ChecksumError("Template hash checksum mismatch! Expected: {} Got: {}".format(self.md5, our_md5)) from None
+                source_cfn = re.sub(
+                    "Hash: [0-9a-f]{32}", "Hash: __HASH__", self.cfn_template
+                )
+                our_md5 = hashlib.md5(source_cfn.encode("utf-8")).hexdigest()
+                if our_md5 != self.md5:
+                    raise ChecksumError(
+                        "Template hash checksum mismatch! Expected: {} Got: {}".format(
+                            self.md5, our_md5
+                        )
+                    ) from None
 
             except KeyError:
                 raise ChecksumError("Template missing Hash checksum!") from None
@@ -231,14 +272,14 @@ class Stack(object):
         search_refs(self.cfn_data, include, self.mode)
         for ref in include:
             if self.mode != "Piped":
-                self.dependencies.add(ref.split('.')[0])
+                self.dependencies.add(ref.split(".")[0])
             else:
-                self.dependencies.add(ref.split('DoT')[0])
+                self.dependencies.add(ref.split("DoT")[0])
 
         # Extract hooks
         try:
-            for hook, func in self.cfn_data['Metadata']['Hooks'].items():
-                if hook in ['post_update', 'post_create', 'pre_create', 'pre_update']:
+            for hook, func in self.cfn_data["Metadata"]["Hooks"].items():
+                if hook in ["post_update", "post_create", "pre_create", "pre_update"]:
                     if isinstance(func, list):
                         self.hooks[hook].extend(func)
                     else:
@@ -248,86 +289,133 @@ class Stack(object):
 
     def write_template_file(self):
         if self.cfn_template:
-            yaml_file = os.path.join(self.ctx['template_path'], self.rel_path, self.stackname + ".yaml")
-            ensure_dir(os.path.join(self.ctx['template_path'], self.rel_path))
-            with open(yaml_file, 'w') as yaml_contents:
+            yaml_file = os.path.join(
+                self.ctx["template_path"], self.rel_path, self.stackname + ".yaml"
+            )
+            ensure_dir(os.path.join(self.ctx["template_path"], self.rel_path))
+            with open(yaml_file, "w") as yaml_contents:
                 yaml_contents.write(self.cfn_template)
-                logger.info('Wrote %s to %s', self.template, yaml_file)
+                logger.info("Wrote %s to %s", self.template, yaml_file)
 
             # upload template to s3 if set
             if self.template_bucket_url:
                 try:
-                    (bucket, path) = get_s3_url(self.template_bucket_url, self.rel_path, self.stackname + ".yaml")
+                    (bucket, path) = get_s3_url(
+                        self.template_bucket_url,
+                        self.rel_path,
+                        self.stackname + ".yaml",
+                    )
                     self.connection_manager.call(
-                        's3', 'put_object',
-                        {'Bucket': bucket,
-                            'Key': path,
-                            'Body': self.cfn_template,
-                            'ServerSideEncryption': 'AES256'},
-                        profile=self.profile, region=self.region)
+                        "s3",
+                        "put_object",
+                        {
+                            "Bucket": bucket,
+                            "Key": path,
+                            "Body": self.cfn_template,
+                            "ServerSideEncryption": "AES256",
+                        },
+                        profile=self.profile,
+                        region=self.region,
+                    )
 
                     logger.info("Uploaded template to s3://{}/{}".format(bucket, path))
                 except ClientError as e:
-                    logger.error("Error trying to upload template so S3: {}, {}".format(self.template_bucket_url, e))
+                    logger.error(
+                        "Error trying to upload template so S3: {}, {}".format(
+                            self.template_bucket_url, e
+                        )
+                    )
 
             else:
                 if len(self.cfn_template) > 51200:
-                    logger.warning("template_bucket_url not set and rendered template exceeds maximum allowed size of 51200, actual size: {} !".format(len(self.cfn_template)))
+                    logger.warning(
+                        "template_bucket_url not set and rendered template exceeds maximum allowed size of 51200, actual size: {} !".format(
+                            len(self.cfn_template)
+                        )
+                    )
         else:
-            logger.error('No cfn template rendered yet for stack {}.'.format(self.stackname))
+            logger.error(
+                "No cfn template rendered yet for stack {}.".format(self.stackname)
+            )
 
     def delete_template_file(self):
-        yaml_file = os.path.join(self.ctx['template_path'], self.rel_path, self.stackname + ".yaml")
+        yaml_file = os.path.join(
+            self.ctx["template_path"], self.rel_path, self.stackname + ".yaml"
+        )
         try:
             os.remove(yaml_file)
-            logger.debug('Deleted cfn template %s.', yaml_file)
+            logger.debug("Deleted cfn template %s.", yaml_file)
         except OSError:
             pass
 
         if self.template_bucket_url:
             try:
-                (bucket, path) = get_s3_url(self.template_bucket_url, self.rel_path, self.stackname + ".yaml")
+                (bucket, path) = get_s3_url(
+                    self.template_bucket_url, self.rel_path, self.stackname + ".yaml"
+                )
                 self.connection_manager.call(
-                    's3', 'delete_object',
-                    {'Bucket': bucket,
-                        'Key': path},
-                    profile=self.profile, region=self.region)
+                    "s3",
+                    "delete_object",
+                    {"Bucket": bucket, "Key": path},
+                    profile=self.profile,
+                    region=self.region,
+                )
 
                 logger.info("Deleted template from s3://{}/{}".format(bucket, path))
             except ClientError as e:
-                logger.error("Error trying to delete template from S3: {}, {}".format(self.template_bucket_url, e))
+                logger.error(
+                    "Error trying to delete template from S3: {}, {}".format(
+                        self.template_bucket_url, e
+                    )
+                )
 
     def read_template_file(self):
-        """ Reads rendered yaml template from disk or s3 and extracts metadata """
+        """Reads rendered yaml template from disk or s3 and extracts metadata"""
         if not self.cfn_template:
             if self.template_bucket_url:
                 try:
-                    (bucket, path) = get_s3_url(self.template_bucket_url, self.rel_path, self.stackname + ".yaml")
+                    (bucket, path) = get_s3_url(
+                        self.template_bucket_url,
+                        self.rel_path,
+                        self.stackname + ".yaml",
+                    )
                     template = self.connection_manager.call(
-                        's3', 'get_object',
-                        {'Bucket': bucket,
-                            'Key': path},
-                        profile=self.profile, region=self.region)
+                        "s3",
+                        "get_object",
+                        {"Bucket": bucket, "Key": path},
+                        profile=self.profile,
+                        region=self.region,
+                    )
                     logger.debug("Got template from s3://{}/{}".format(bucket, path))
 
-                    self.cfn_template = template['Body'].read().decode('utf-8')
+                    self.cfn_template = template["Body"].read().decode("utf-8")
 
                     # Overwrite local copy
-                    yaml_file = os.path.join(self.ctx['template_path'], self.rel_path, self.stackname + ".yaml")
-                    ensure_dir(os.path.join(self.ctx['template_path'], self.rel_path))
-                    with open(yaml_file, 'w') as yaml_contents:
+                    yaml_file = os.path.join(
+                        self.ctx["template_path"],
+                        self.rel_path,
+                        self.stackname + ".yaml",
+                    )
+                    ensure_dir(os.path.join(self.ctx["template_path"], self.rel_path))
+                    with open(yaml_file, "w") as yaml_contents:
                         yaml_contents.write(self.cfn_template)
 
                 except ClientError as e:
-                    logger.error("Could not find template file on S3: {}/{}, {}".format(bucket, path, e))
+                    logger.error(
+                        "Could not find template file on S3: {}/{}, {}".format(
+                            bucket, path, e
+                        )
+                    )
 
             else:
-                yaml_file = os.path.join(self.ctx['template_path'], self.rel_path, self.stackname + ".yaml")
+                yaml_file = os.path.join(
+                    self.ctx["template_path"], self.rel_path, self.stackname + ".yaml"
+                )
 
                 try:
-                    with open(yaml_file, 'r') as yaml_contents:
+                    with open(yaml_file, "r") as yaml_contents:
                         self.cfn_template = yaml_contents.read()
-                        logger.debug('Read cfn template %s.', yaml_file)
+                        logger.debug("Read cfn template %s.", yaml_file)
                 except FileNotFoundError as e:
                     logger.warn("Could not find template file: {}".format(yaml_file))
                     raise e
@@ -336,40 +424,50 @@ class Stack(object):
             self._parse_metadata()
 
         else:
-            logger.debug('Using cached cfn template %s.', self.stackname)
+            logger.debug("Using cached cfn template %s.", self.stackname)
 
     def validate(self):
         """Validates the rendered template via cfn-lint"""
         self.read_template_file()
 
         try:
-            ignore_checks = self.cfn_data['Metadata']['cfnlint_ignore']
+            ignore_checks = self.cfn_data["Metadata"]["cfnlint_ignore"]
         except KeyError:
             ignore_checks = []
 
         # Ignore some more checks around injected parameters as we generate these
         if self.mode == "Piped":
-            ignore_checks = ignore_checks + ['W2505', 'W2509', 'W2507']
+            ignore_checks = ignore_checks + ["W2505", "W2509", "W2507"]
 
         # Ignore checks regarding overloaded properties
         if self.mode == "CloudBender":
-            ignore_checks = ignore_checks + ['E3035', 'E3002', 'E3012', 'W2001', 'E3001', 'E0002', 'E1012']
+            ignore_checks = ignore_checks + [
+                "E3035",
+                "E3002",
+                "E3012",
+                "W2001",
+                "E3001",
+                "E0002",
+                "E1012",
+            ]
 
-        filename = os.path.join(self.ctx['template_path'], self.rel_path, self.stackname + ".yaml")
-        logger.info('Validating {0}'.format(filename))
+        filename = os.path.join(
+            self.ctx["template_path"], self.rel_path, self.stackname + ".yaml"
+        )
+        logger.info("Validating {0}".format(filename))
 
-        lint_args = ['--template', filename]
+        lint_args = ["--template", filename]
         if ignore_checks:
-            lint_args.append('--ignore-checks')
+            lint_args.append("--ignore-checks")
             lint_args = lint_args + ignore_checks
-            logger.info('Ignoring checks: {}'.format(','.join(ignore_checks)))
+            logger.info("Ignoring checks: {}".format(",".join(ignore_checks)))
 
         (args, filenames, formatter) = cfnlint.core.get_args_filenames(lint_args)
         (template, rules, matches) = cfnlint.core.get_template_rules(filename, args)
 
         region = self.region
-        if region == 'global':
-            region = 'us-east-1'
+        if region == "global":
+            region = "us-east-1"
 
         if not matches:
             matches.extend(cfnlint.core.run_checks(filename, template, rules, [region]))
@@ -381,10 +479,10 @@ class Stack(object):
             logger.info("Passed.")
             return 0
 
-    def get_outputs(self, include='.*', values=False):
-        """ gets outputs of the stack """
+    def get_outputs(self, include=".*", values=False):
+        """gets outputs of the stack"""
 
-        if self.mode == 'pulumi':
+        if self.mode == "pulumi":
             stack = pulumi_init(self)
             self.outputs = stack.outputs()
 
@@ -399,13 +497,19 @@ class Stack(object):
                 stacks = self.connection_manager.call(
                     "cloudformation",
                     "describe_stacks",
-                    {'StackName': self.stackname},
-                    profile=self.profile, region=self.region)['Stacks']
+                    {"StackName": self.stackname},
+                    profile=self.profile,
+                    region=self.region,
+                )["Stacks"]
 
                 try:
-                    for output in stacks[0]['Outputs']:
-                        self.outputs[output['OutputKey']] = output['OutputValue']
-                    logger.debug("Stack outputs for {} in {}: {}".format(self.stackname, self.region, self.outputs))
+                    for output in stacks[0]["Outputs"]:
+                        self.outputs[output["OutputKey"]] = output["OutputValue"]
+                    logger.debug(
+                        "Stack outputs for {} in {}: {}".format(
+                            self.stackname, self.region, self.outputs
+                        )
+                    )
                 except KeyError:
                     pass
 
@@ -414,31 +518,46 @@ class Stack(object):
                 pass
 
         if self.outputs:
-            logger.info('{} {} Outputs:\n{}'.format(self.region, self.stackname, pprint.pformat(self.outputs, indent=2)))
+            logger.info(
+                "{} {} Outputs:\n{}".format(
+                    self.region, self.stackname, pprint.pformat(self.outputs, indent=2)
+                )
+            )
             if self.store_outputs:
                 try:
-                    filename = self.cfn_data['Metadata']['CustomOutputs']['Name']
-                    my_template = self.cfn_data['Metadata']['CustomOutputs']['Template']
+                    filename = self.cfn_data["Metadata"]["CustomOutputs"]["Name"]
+                    my_template = self.cfn_data["Metadata"]["CustomOutputs"]["Template"]
                 except (TypeError, KeyError):
                     filename = self.stackname + ".yaml"
-                    my_template = pkg_resources.read_text(templates, 'outputs.yaml')
+                    my_template = pkg_resources.read_text(templates, "outputs.yaml")
 
-                output_file = os.path.join(self.ctx['outputs_path'], self.rel_path, filename)
-                ensure_dir(os.path.join(self.ctx['outputs_path'], self.rel_path))
+                output_file = os.path.join(
+                    self.ctx["outputs_path"], self.rel_path, filename
+                )
+                ensure_dir(os.path.join(self.ctx["outputs_path"], self.rel_path))
 
                 jenv = JinjaEnv()
                 template = jenv.from_string(my_template)
-                data = {'stackname': "/".join([self.rel_path, self.stackname]), 'timestamp': datetime.strftime(datetime.now(tzutc()), "%d/%m/%y %H:%M"), 'outputs': self.outputs, 'parameters': self.parameters}
+                data = {
+                    "stackname": "/".join([self.rel_path, self.stackname]),
+                    "timestamp": datetime.strftime(
+                        datetime.now(tzutc()), "%d/%m/%y %H:%M"
+                    ),
+                    "outputs": self.outputs,
+                    "parameters": self.parameters,
+                }
 
-                with open(output_file, 'w') as output_contents:
+                with open(output_file, "w") as output_contents:
                     output_contents.write(template.render(**data))
-                    logger.info('Wrote outputs for %s to %s', self.stackname, output_file)
+                    logger.info(
+                        "Wrote outputs for %s to %s", self.stackname, output_file
+                    )
 
     def create_docs(self, template=False, graph=False):
-        """ Read rendered template, parse documentation fragments, eg. parameter description
-            and create a mardown doc file for the stack
-            same idea as eg. helm-docs for values.yaml
-         """
+        """Read rendered template, parse documentation fragments, eg. parameter description
+        and create a mardown doc file for the stack
+        same idea as eg. helm-docs for values.yaml
+        """
 
         try:
             self.read_template_file()
@@ -446,65 +565,74 @@ class Stack(object):
             return
 
         if not template:
-            doc_template = pkg_resources.read_text(templates, 'stack-doc.md')
+            doc_template = pkg_resources.read_text(templates, "stack-doc.md")
             jenv = JinjaEnv()
             template = jenv.from_string(doc_template)
             data = {}
         else:
             doc_template = template
 
-        data['name'] = self.stackname
-        data['description'] = self.cfn_data['Description']
-        data['dependencies'] = self.dependencies
+        data["name"] = self.stackname
+        data["description"] = self.cfn_data["Description"]
+        data["dependencies"] = self.dependencies
 
-        if 'Parameters' in self.cfn_data:
-            data['parameters'] = self.cfn_data['Parameters']
+        if "Parameters" in self.cfn_data:
+            data["parameters"] = self.cfn_data["Parameters"]
             set_parameters = self.resolve_parameters()
             for p in set_parameters:
-                data['parameters'][p]['value'] = set_parameters[p]
+                data["parameters"][p]["value"] = set_parameters[p]
 
-        if 'Outputs' in self.cfn_data:
-            data['outputs'] = self.cfn_data['Outputs']
+        if "Outputs" in self.cfn_data:
+            data["outputs"] = self.cfn_data["Outputs"]
 
             # Check for existing outputs yaml, if found add current value column and set header to timestamp from outputs file
-            output_file = os.path.join(self.ctx['outputs_path'], self.rel_path, self.stackname + ".yaml")
+            output_file = os.path.join(
+                self.ctx["outputs_path"], self.rel_path, self.stackname + ".yaml"
+            )
 
             try:
-                with open(output_file, 'r') as yaml_contents:
+                with open(output_file, "r") as yaml_contents:
                     outputs = yaml.safe_load(yaml_contents.read())
-                    for p in outputs['Outputs']:
-                        data['outputs'][p]['last_value'] = outputs['Outputs'][p]
-                    data['timestamp'] = outputs['TimeStamp']
+                    for p in outputs["Outputs"]:
+                        data["outputs"][p]["last_value"] = outputs["Outputs"][p]
+                    data["timestamp"] = outputs["TimeStamp"]
             except (FileNotFoundError, KeyError, TypeError):
                 pass
 
-        doc_file = os.path.join(self.ctx['docs_path'], self.rel_path, self.stackname + ".md")
-        ensure_dir(os.path.join(self.ctx['docs_path'], self.rel_path))
+        doc_file = os.path.join(
+            self.ctx["docs_path"], self.rel_path, self.stackname + ".md"
+        )
+        ensure_dir(os.path.join(self.ctx["docs_path"], self.rel_path))
 
-        with open(doc_file, 'w') as doc_contents:
+        with open(doc_file, "w") as doc_contents:
             doc_contents.write(template.render(**data))
-            logger.info('Wrote documentation for %s to %s', self.stackname, doc_file)
+            logger.info("Wrote documentation for %s to %s", self.stackname, doc_file)
 
         # Write Graph in Dot format
         if graph:
-            filename = os.path.join(self.ctx['template_path'], self.rel_path, self.stackname + ".yaml")
+            filename = os.path.join(
+                self.ctx["template_path"], self.rel_path, self.stackname + ".yaml"
+            )
 
-            lint_args = ['--template', filename]
+            lint_args = ["--template", filename]
             (args, filenames, formatter) = cfnlint.core.get_args_filenames(lint_args)
             (template, rules, matches) = cfnlint.core.get_template_rules(filename, args)
             template_obj = cfnlint.template.Template(filename, template, [self.region])
 
-            path = os.path.join(self.ctx['docs_path'], self.rel_path, self.stackname + ".dot")
+            path = os.path.join(
+                self.ctx["docs_path"], self.rel_path, self.stackname + ".dot"
+            )
             g = cfnlint.graph.Graph(template_obj)
             try:
                 g.to_dot(path)
-                logger.info('DOT representation of the graph written to %s', path)
+                logger.info("DOT representation of the graph written to %s", path)
             except ImportError:
                 logger.error(
-                    'Could not write the graph in DOT format. Please install either `pygraphviz` or `pydot` modules.')
+                    "Could not write the graph in DOT format. Please install either `pygraphviz` or `pydot` modules."
+                )
 
     def resolve_parameters(self):
-        """ Renders parameters for the stack based on the source template and the environment configuration """
+        """Renders parameters for the stack based on the source template and the environment configuration"""
 
         self.read_template_file()
 
@@ -512,23 +640,25 @@ class Stack(object):
         if self.mode == "Piped":
             stack_outputs = {}
             try:
-                stack_outputs = self._inspect_stacks(self.tags['Conglomerate'])
+                stack_outputs = self._inspect_stacks(self.tags["Conglomerate"])
             except KeyError:
                 pass
 
         _found = {}
-        if 'Parameters' in self.cfn_data:
+        if "Parameters" in self.cfn_data:
             _errors = []
             self.cfn_parameters = []
-            for p in self.cfn_data['Parameters']:
+            for p in self.cfn_data["Parameters"]:
                 # In Piped mode we try to resolve all Paramters first via stack_outputs
                 if self.mode == "Piped":
                     try:
                         # first reverse the rename due to AWS alphanumeric restriction for parameter names
-                        _p = p.replace('DoT', '.')
+                        _p = p.replace("DoT", ".")
                         value = str(stack_outputs[_p])
-                        self.cfn_parameters.append({'ParameterKey': p, 'ParameterValue': value})
-                        logger.info('Got {} = {} from running stack'.format(p, value))
+                        self.cfn_parameters.append(
+                            {"ParameterKey": p, "ParameterValue": value}
+                        )
+                        logger.info("Got {} = {} from running stack".format(p, value))
                         continue
                     except KeyError:
                         pass
@@ -536,31 +666,42 @@ class Stack(object):
                 # Key name in config tree is: stacks.<self.stackname>.parameters.<parameter>
                 if p in self.parameters:
                     value = str(self.parameters[p])
-                    self.cfn_parameters.append({'ParameterKey': p, 'ParameterValue': value})
+                    self.cfn_parameters.append(
+                        {"ParameterKey": p, "ParameterValue": value}
+                    )
 
                     # Hide NoEcho parameters in shell output
-                    if 'NoEcho' in self.cfn_data['Parameters'][p] and self.cfn_data['Parameters'][p]['NoEcho']:
-                        value = '****'
+                    if (
+                        "NoEcho" in self.cfn_data["Parameters"][p]
+                        and self.cfn_data["Parameters"][p]["NoEcho"]
+                    ):
+                        value = "****"
 
                     _found[p] = value
                 else:
                     # If we have a Default defined in the CFN skip, as AWS will use it
-                    if 'Default' not in self.cfn_data['Parameters'][p]:
+                    if "Default" not in self.cfn_data["Parameters"][p]:
                         _errors.append(p)
 
             if _errors:
-                raise ParameterNotFound('Cannot find value for parameters: {0}'.format(_errors))
+                raise ParameterNotFound(
+                    "Cannot find value for parameters: {0}".format(_errors)
+                )
 
             # Warning of excessive parameters, might be useful to spot typos early
             _warnings = []
             for p in self.parameters.keys():
-                if p not in self.cfn_data['Parameters']:
+                if p not in self.cfn_data["Parameters"]:
                     _warnings.append(p)
 
-            logger.info('{} {} set parameters:\n{}'.format(self.region, self.stackname, pprint.pformat(_found, indent=2)))
+            logger.info(
+                "{} {} set parameters:\n{}".format(
+                    self.region, self.stackname, pprint.pformat(_found, indent=2)
+                )
+            )
 
             if _warnings:
-                logger.warning('Ignored additional parameters: {}.'.format(_warnings))
+                logger.warning("Ignored additional parameters: {}.".format(_warnings))
 
         # Return dict of explicitly set parameters
         return _found
@@ -568,9 +709,9 @@ class Stack(object):
     @pulumi_ws
     @exec_hooks
     def create(self):
-        """Creates a stack """
+        """Creates a stack"""
 
-        if self.mode == 'pulumi':
+        if self.mode == "pulumi":
             stack = pulumi_init(self)
             stack.up(on_output=self._log_pulumi)
 
@@ -578,17 +719,30 @@ class Stack(object):
             # Prepare parameters
             self.resolve_parameters()
 
-            logger.info('Creating {0} {1}'.format(self.region, self.stackname))
-            kwargs = {'StackName': self.stackname,
-                      'Parameters': self.cfn_parameters,
-                      'OnFailure': self.onfailure,
-                      'NotificationARNs': self.notfication_sns,
-                      'Tags': [{"Key": str(k), "Value": str(v)} for k, v in self.tags.items()],
-                      'Capabilities': ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM', 'CAPABILITY_AUTO_EXPAND']}
+            logger.info("Creating {0} {1}".format(self.region, self.stackname))
+            kwargs = {
+                "StackName": self.stackname,
+                "Parameters": self.cfn_parameters,
+                "OnFailure": self.onfailure,
+                "NotificationARNs": self.notfication_sns,
+                "Tags": [
+                    {"Key": str(k), "Value": str(v)} for k, v in self.tags.items()
+                ],
+                "Capabilities": [
+                    "CAPABILITY_IAM",
+                    "CAPABILITY_NAMED_IAM",
+                    "CAPABILITY_AUTO_EXPAND",
+                ],
+            }
             kwargs = self._add_template_arg(kwargs)
 
             self.aws_stackid = self.connection_manager.call(
-                'cloudformation', 'create_stack', kwargs, profile=self.profile, region=self.region)
+                "cloudformation",
+                "create_stack",
+                kwargs,
+                profile=self.profile,
+                region=self.region,
+            )
 
             status = self._wait_for_completion()
             self.get_outputs()
@@ -598,31 +752,48 @@ class Stack(object):
     @pulumi_ws
     @exec_hooks
     def update(self):
-        """Updates an existing stack """
+        """Updates an existing stack"""
 
         # We cannot migrate directly so bail out if CFN stack still exists
-        if self.mode == 'pulumi':
-            logger.error("Cloudformation stack {} still exists, cannot use Pulumi!".format(self.stackname))
+        if self.mode == "pulumi":
+            logger.error(
+                "Cloudformation stack {} still exists, cannot use Pulumi!".format(
+                    self.stackname
+                )
+            )
             return
 
         # Prepare parameters
         self.resolve_parameters()
 
-        logger.info('Updating {0} {1}'.format(self.region, self.stackname))
+        logger.info("Updating {0} {1}".format(self.region, self.stackname))
         try:
-            kwargs = {'StackName': self.stackname,
-                      'Parameters': self.cfn_parameters,
-                      'NotificationARNs': self.notfication_sns,
-                      'Tags': [{"Key": str(k), "Value": str(v)} for k, v in self.tags.items()],
-                      'Capabilities': ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM', 'CAPABILITY_AUTO_EXPAND']}
+            kwargs = {
+                "StackName": self.stackname,
+                "Parameters": self.cfn_parameters,
+                "NotificationARNs": self.notfication_sns,
+                "Tags": [
+                    {"Key": str(k), "Value": str(v)} for k, v in self.tags.items()
+                ],
+                "Capabilities": [
+                    "CAPABILITY_IAM",
+                    "CAPABILITY_NAMED_IAM",
+                    "CAPABILITY_AUTO_EXPAND",
+                ],
+            }
             kwargs = self._add_template_arg(kwargs)
 
             self.aws_stackid = self.connection_manager.call(
-                'cloudformation', 'update_stack', kwargs, profile=self.profile, region=self.region)
+                "cloudformation",
+                "update_stack",
+                kwargs,
+                profile=self.profile,
+                region=self.region,
+            )
 
         except ClientError as e:
-            if 'No updates are to be performed' in e.response['Error']['Message']:
-                logger.info('No updates for {0}'.format(self.stackname))
+            if "No updates are to be performed" in e.response["Error"]["Message"]:
+                logger.info("No updates for {0}".format(self.stackname))
                 return "COMPLETE"
             else:
                 raise e
@@ -635,26 +806,30 @@ class Stack(object):
     @pulumi_ws
     @exec_hooks
     def delete(self):
-        """ Deletes a stack """
+        """Deletes a stack"""
 
-        logger.info('Deleting {0} {1}'.format(self.region, self.stackname))
+        logger.info("Deleting {0} {1}".format(self.region, self.stackname))
 
-        if self.mode == 'pulumi':
+        if self.mode == "pulumi":
             stack = pulumi_init(self)
             stack.destroy(on_output=self._log_pulumi)
 
             return
 
         self.aws_stackid = self.connection_manager.call(
-            'cloudformation', 'delete_stack', {'StackName': self.stackname},
-            profile=self.profile, region=self.region)
+            "cloudformation",
+            "delete_stack",
+            {"StackName": self.stackname},
+            profile=self.profile,
+            region=self.region,
+        )
 
         status = self._wait_for_completion()
         return status
 
     @pulumi_ws
     def refresh(self):
-        """ Refreshes a Pulumi stack """
+        """Refreshes a Pulumi stack"""
 
         stack = pulumi_init(self)
         stack.refresh(on_output=self._log_pulumi)
@@ -663,7 +838,7 @@ class Stack(object):
 
     @pulumi_ws
     def preview(self):
-        """ Preview a Pulumi stack up operation"""
+        """Preview a Pulumi stack up operation"""
 
         stack = pulumi_init(self)
         stack.preview(on_output=self._log_pulumi)
@@ -672,15 +847,15 @@ class Stack(object):
 
     @pulumi_ws
     def export(self, reset):
-        """ Exports a Pulumi stack """
+        """Exports a Pulumi stack"""
 
         stack = pulumi_init(self)
         deployment = stack.export_stack()
 
         if reset:
-            deployment.deployment.pop('pending_operations', None)
+            deployment.deployment.pop("pending_operations", None)
             stack.import_stack(deployment)
-            logger.info('Removed all pending_operations from %s' % self.stackname)
+            logger.info("Removed all pending_operations from %s" % self.stackname)
         else:
             print(json.dumps(deployment.deployment))
 
@@ -688,7 +863,7 @@ class Stack(object):
 
     @pulumi_ws
     def set_config(self, key, value, secret):
-        """ Set a config or secret """
+        """Set a config or secret"""
 
         stack = pulumi_init(self)
         stack.set_config(key, pulumi.automation.ConfigValue(value, secret))
@@ -700,17 +875,19 @@ class Stack(object):
         with open(self.path, "r") as file:
             settings = yaml.safe_load(file)
 
-            if 'pulumi' not in settings:
-                settings['pulumi'] = {}
+            if "pulumi" not in settings:
+                settings["pulumi"] = {}
 
-            if 'encryptionsalt' in pulumi_settings:
-                settings['pulumi']['encryptionsalt'] = pulumi_settings['encryptionsalt']
-            if 'encryptedkey' in pulumi_settings:
-                settings['pulumi']['encryptedkey'] = pulumi_settings['encryptedkey']
+            if "encryptionsalt" in pulumi_settings:
+                settings["pulumi"]["encryptionsalt"] = pulumi_settings["encryptionsalt"]
+            if "encryptedkey" in pulumi_settings:
+                settings["pulumi"]["encryptedkey"] = pulumi_settings["encryptedkey"]
 
-            if 'parameters' not in settings:
-                settings['parameters'] = {}
-            settings['parameters'][key] = pulumi_settings['config']['{}:{}'.format(self.parameters['Conglomerate'], key)]
+            if "parameters" not in settings:
+                settings["parameters"] = {}
+            settings["parameters"][key] = pulumi_settings["config"][
+                "{}:{}".format(self.parameters["Conglomerate"], key)
+            ]
 
         with open(self.path, "w") as file:
             yaml.dump(settings, stream=file)
@@ -719,28 +896,39 @@ class Stack(object):
 
     @pulumi_ws
     def get_config(self, key):
-        """ Get a config or secret """
+        """Get a config or secret"""
 
         stack = pulumi_init(self)
         print(stack.get_config(key).value)
 
     def create_change_set(self, change_set_name):
-        """ Creates a Change Set with the name ``change_set_name``.  """
+        """Creates a Change Set with the name ``change_set_name``."""
 
         # Prepare parameters
         self.resolve_parameters()
         self.read_template_file()
 
-        logger.info('Creating change set {0} for stack {1}'.format(change_set_name, self.stackname))
-        kwargs = {'StackName': self.stackname,
-                  'ChangeSetName': change_set_name,
-                  'Parameters': self.cfn_parameters,
-                  'Tags': [{"Key": str(k), "Value": str(v)} for k, v in self.tags.items()],
-                  'Capabilities': ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM']}
+        logger.info(
+            "Creating change set {0} for stack {1}".format(
+                change_set_name, self.stackname
+            )
+        )
+        kwargs = {
+            "StackName": self.stackname,
+            "ChangeSetName": change_set_name,
+            "Parameters": self.cfn_parameters,
+            "Tags": [{"Key": str(k), "Value": str(v)} for k, v in self.tags.items()],
+            "Capabilities": ["CAPABILITY_IAM", "CAPABILITY_NAMED_IAM"],
+        }
         kwargs = self._add_template_arg(kwargs)
 
         self.connection_manager.call(
-            'cloudformation', 'create_change_set', kwargs, profile=self.profile, region=self.region)
+            "cloudformation",
+            "create_change_set",
+            kwargs,
+            profile=self.profile,
+            region=self.region,
+        )
         return self._wait_for_completion()
 
     def get_status(self):
@@ -753,7 +941,9 @@ class Stack(object):
                 "cloudformation",
                 "describe_stacks",
                 {"StackName": self.stackname},
-                profile=self.profile, region=self.region)["Stacks"][0]["StackStatus"]
+                profile=self.profile,
+                region=self.region,
+            )["Stacks"][0]["StackStatus"]
         except ClientError as e:
             if e.response["Error"]["Message"].endswith("does not exist"):
                 return None
@@ -771,7 +961,9 @@ class Stack(object):
                 "cloudformation",
                 "describe_stack_events",
                 {"StackName": self.stackname},
-                profile=self.profile, region=self.region)
+                profile=self.profile,
+                region=self.region,
+            )
         except ClientError as e:
             if e.response["Error"]["Message"].endswith("does not exist"):
                 return None
@@ -792,9 +984,7 @@ class Stack(object):
 
         status = "IN_PROGRESS"
 
-        self.most_recent_event_datetime = (
-            datetime.now(tzutc()) - timedelta(seconds=3)
-        )
+        self.most_recent_event_datetime = datetime.now(tzutc()) - timedelta(seconds=3)
         elapsed = 0
         while status == "IN_PROGRESS" and not timed_out(elapsed):
             status = self._get_simplified_status(self.get_status())
@@ -809,7 +999,7 @@ class Stack(object):
 
     @staticmethod
     def _get_simplified_status(status):
-        """ Returns the simplified Stack Status.  """
+        """Returns the simplified Stack Status."""
         if status:
             if status.endswith("ROLLBACK_COMPLETE"):
                 return "FAILED"
@@ -820,7 +1010,7 @@ class Stack(object):
             elif status.endswith("_FAILED"):
                 return "FAILED"
             else:
-                return 'Unknown'
+                return "Unknown"
 
     def _log_new_events(self):
         """
@@ -831,18 +1021,23 @@ class Stack(object):
             events = events["StackEvents"]
             events.reverse()
             new_events = [
-                event for event in events
+                event
+                for event in events
                 if event["Timestamp"] > self.most_recent_event_datetime
             ]
             for event in new_events:
-                logger.info(" ".join([
-                    self.region,
-                    self.stackname,
-                    event["LogicalResourceId"],
-                    event["ResourceType"],
-                    event["ResourceStatus"],
-                    event.get("ResourceStatusReason", "")
-                ]))
+                logger.info(
+                    " ".join(
+                        [
+                            self.region,
+                            self.stackname,
+                            event["LogicalResourceId"],
+                            event["ResourceType"],
+                            event["ResourceStatus"],
+                            event.get("ResourceStatusReason", ""),
+                        ]
+                    )
+                )
                 self.most_recent_event_datetime = event["Timestamp"]
 
     # stackoutput inspection
@@ -851,12 +1046,14 @@ class Stack(object):
         running_stacks = self.connection_manager.call(
             "cloudformation",
             "describe_stacks",
-            profile=self.profile, region=self.region)
+            profile=self.profile,
+            region=self.region,
+        )
 
         stacks = []
-        for stack in running_stacks['Stacks']:
-            for tag in stack['Tags']:
-                if tag['Key'] == 'Conglomerate' and tag['Value'] == conglomerate:
+        for stack in running_stacks["Stacks"]:
+            for tag in stack["Tags"]:
+                if tag["Key"] == "Conglomerate" and tag["Value"] == conglomerate:
                     stacks.append(stack)
                     break
 
@@ -865,9 +1062,9 @@ class Stack(object):
         for stack in stacks:
             # If stack has an Artifact Tag put resources into the namespace Artifact.Resource
             artifact = None
-            for tag in stack['Tags']:
-                if tag['Key'] == 'Artifact':
-                    artifact = tag['Value']
+            for tag in stack["Tags"]:
+                if tag["Key"] == "Artifact":
+                    artifact = tag["Value"]
 
             if artifact:
                 key_prefix = "{}.".format(artifact)
@@ -875,9 +1072,11 @@ class Stack(object):
                 key_prefix = ""
 
             try:
-                for output in stack['Outputs']:
+                for output in stack["Outputs"]:
                     # Gather all outputs of the stack into one dimensional key=value structure
-                    stack_outputs[key_prefix + output['OutputKey']] = output['OutputValue']
+                    stack_outputs[key_prefix + output["OutputKey"]] = output[
+                        "OutputValue"
+                    ]
             except KeyError:
                 pass
 
@@ -888,19 +1087,35 @@ class Stack(object):
         if self.template_bucket_url:
             # https://bucket-name.s3.Region.amazonaws.com/key name
             # so we need the region, AWS as usual
-            (bucket, path) = get_s3_url(self.template_bucket_url, self.rel_path, self.stackname + ".yaml")
-            bucket_region = self.connection_manager.call('s3', 'get_bucket_location', {'Bucket': bucket}, profile=self.profile, region=self.region)['LocationConstraint']
+            (bucket, path) = get_s3_url(
+                self.template_bucket_url, self.rel_path, self.stackname + ".yaml"
+            )
+            bucket_region = self.connection_manager.call(
+                "s3",
+                "get_bucket_location",
+                {"Bucket": bucket},
+                profile=self.profile,
+                region=self.region,
+            )["LocationConstraint"]
             # If bucket is in us-east-1 AWS returns 'none' cause reasons grrr
             if not bucket_region:
-                bucket_region = 'us-east-1'
+                bucket_region = "us-east-1"
 
-            kwargs['TemplateURL'] = 'https://{}.s3.{}.amazonaws.com/{}'.format(bucket, bucket_region, path)
+            kwargs["TemplateURL"] = "https://{}.s3.{}.amazonaws.com/{}".format(
+                bucket, bucket_region, path
+            )
         else:
-            kwargs['TemplateBody'] = self.cfn_template
+            kwargs["TemplateBody"] = self.cfn_template
 
         return kwargs
 
     def _log_pulumi(self, text):
-        text = re.sub(r'pulumi:pulumi:Stack\s*{}-{}\s*'.format(self.parameters['Conglomerate'], self.stackname), '', text)
+        text = re.sub(
+            r"pulumi:pulumi:Stack\s*{}-{}\s*".format(
+                self.parameters["Conglomerate"], self.stackname
+            ),
+            "",
+            text,
+        )
         if text and not text.isspace():
             logger.info(" ".join([self.region, self.stackname, text]))
