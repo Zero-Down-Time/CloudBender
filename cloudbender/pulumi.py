@@ -92,7 +92,7 @@ def pulumi_init(stack):
     os.environ["AWS_DEFAULT_REGION"] = stack.region
 
     # Secrets provider
-    try:
+    if "secretsProvider" in stack.pulumi:
         secrets_provider = stack.pulumi["secretsProvider"]
         if (
             secrets_provider == "passphrase"
@@ -100,9 +100,13 @@ def pulumi_init(stack):
         ):
             raise ValueError("Missing PULUMI_CONFIG_PASSPHRASE environment variable!")
 
-    except KeyError:
-        logger.warning("Missing pulumi.secretsProvider setting, secrets disabled !")
-        secrets_provider = None
+    else:
+        try:
+            if _stack.IKNOWHATIDO:
+                logger.warning("Missing pulumi.secretsProvider setting, IKNOWHATIDO enabled ... ")
+                secrets_provider = None
+        except AttributeError:
+            raise ValueError("Missing pulumi.secretsProvider setting!")
 
     # Set tag for stack file name and version
     _tags = stack.tags
