@@ -342,21 +342,39 @@ def _render(stacks):
             logger.info("{} uses Pulumi, render skipped.".format(s.stackname))
 
 
+def _anyPulumi(step):
+    for stack in step:
+        if stack.mode == "pulumi":
+            return True
+
+    return False
+
+
 def _provision(cb, stacks):
     """Utility function to reuse code between tasks"""
     for step in sort_stacks(cb, stacks):
         if step:
-            with ThreadPoolExecutor(max_workers=len(step)) as group:
-                futures = []
+            # if there are any Pulumi stacks in the step execute serial
+            if _anyPulumi(step):
                 for stack in step:
                     status = stack.get_status()
                     if not status:
-                        futures.append(group.submit(stack.create))
+                        stack.create()
                     else:
-                        futures.append(group.submit(stack.update))
+                        stack.update()
 
-                for future in as_completed(futures):
-                    future.result()
+            else:
+                with ThreadPoolExecutor(max_workers=len(step)) as group:
+                    futures = []
+                    for stack in step:
+                        status = stack.get_status()
+                        if not status:
+                            futures.append(group.submit(stack.create))
+                        else:
+                            futures.append(group.submit(stack.update))
+
+                    for future in as_completed(futures):
+                        future.result()
 
 
 cli.add_command(render)
