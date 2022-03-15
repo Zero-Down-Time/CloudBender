@@ -545,7 +545,7 @@ class Stack(object):
 
             # If secrets replace with clear values for now, display ONLY
             for k in self.outputs.keys():
-                if self.outputs[k].secret:
+                if hasattr(self.outputs[k], 'secret') and self.outputs[k].secret:
                     self.outputs[k] = self.outputs[k].value
 
             logger.info(
