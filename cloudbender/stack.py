@@ -486,11 +486,6 @@ class Stack(object):
             stack = pulumi_init(self)
             self.outputs = stack.outputs()
 
-            # If secrets replace with clear values for now
-            for k in self.outputs.keys():
-                if self.outputs[k].secret:
-                    self.outputs[k] = self.outputs[k].value
-
         else:
             self.read_template_file()
             try:
@@ -518,11 +513,6 @@ class Stack(object):
                 pass
 
         if self.outputs:
-            logger.info(
-                "{} {} Outputs:\n{}".format(
-                    self.region, self.stackname, pprint.pformat(self.outputs, indent=2)
-                )
-            )
             if self.store_outputs:
                 try:
                     filename = self.cfn_data["Metadata"]["CustomOutputs"]["Name"]
@@ -552,6 +542,17 @@ class Stack(object):
                     logger.info(
                         "Wrote outputs for %s to %s", self.stackname, output_file
                     )
+
+            # If secrets replace with clear values for now, display ONLY
+            for k in self.outputs.keys():
+                if self.outputs[k].secret:
+                    self.outputs[k] = self.outputs[k].value
+
+            logger.info(
+                "{} {} Outputs:\n{}".format(
+                    self.region, self.stackname, pprint.pformat(self.outputs, indent=2)
+                )
+            )
 
     def create_docs(self, template=False, graph=False):
         """Read rendered template, parse documentation fragments, eg. parameter description
