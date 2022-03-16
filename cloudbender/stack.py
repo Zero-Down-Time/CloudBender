@@ -83,6 +83,7 @@ class Stack(object):
         self.template_bucket_url = None
         self.work_dir = None
         self.pulumi = {}
+        self._pulumi_stack = None
 
     def dump_config(self):
         logger.debug("<Stack {}: {}>".format(self.id, pprint.pformat(vars(self))))
@@ -483,8 +484,7 @@ class Stack(object):
         """gets outputs of the stack"""
 
         if self.mode == "pulumi":
-            stack = pulumi_init(self)
-            self.outputs = stack.outputs()
+            self.outputs = pulumi_init(self).outputs()
 
         else:
             self.read_template_file()
@@ -545,7 +545,7 @@ class Stack(object):
 
             # If secrets replace with clear values for now, display ONLY
             for k in self.outputs.keys():
-                if hasattr(self.outputs[k], 'secret') and self.outputs[k].secret:
+                if hasattr(self.outputs[k], "secret") and self.outputs[k].secret:
                     self.outputs[k] = self.outputs[k].value
 
             logger.info(
@@ -713,8 +713,7 @@ class Stack(object):
         """Creates a stack"""
 
         if self.mode == "pulumi":
-            stack = pulumi_init(self)
-            stack.up(on_output=self._log_pulumi)
+            pulumi_init(self, create=True).up(on_output=self._log_pulumi)
 
         else:
             # Prepare parameters
@@ -812,8 +811,9 @@ class Stack(object):
         logger.info("Deleting {0} {1}".format(self.region, self.stackname))
 
         if self.mode == "pulumi":
-            stack = pulumi_init(self)
-            stack.destroy(on_output=self._log_pulumi)
+            pulumi_stack = pulumi_init(self)
+            pulumi_stack.destroy(on_output=self._log_pulumi)
+            pulumi_stack.workspace.remove_stack(pulumi_stack.name)
 
             return
 
@@ -832,8 +832,7 @@ class Stack(object):
     def refresh(self):
         """Refreshes a Pulumi stack"""
 
-        stack = pulumi_init(self)
-        stack.refresh(on_output=self._log_pulumi)
+        pulumi_init(self).refresh(on_output=self._log_pulumi)
 
         return
 
@@ -841,8 +840,20 @@ class Stack(object):
     def preview(self):
         """Preview a Pulumi stack up operation"""
 
-        stack = pulumi_init(self)
-        stack.preview(on_output=self._log_pulumi)
+        pulumi_init(self).preview(on_output=self._log_pulumi)
+
+        return
+
+    @pulumi_ws
+    def assimilate(self):
+        """Import resources into Pulumi stack"""
+
+        pulumi_stack = pulumi_init(self, create=True)
+
+        # now lets import each defined resource
+        for r in self._pulumi_code.RESOURCES:
+            args = ["import", r["type"], r["name"], r["id"], "--yes"]
+            pulumi_stack._run_pulumi_cmd_sync(args)
 
         return
 
@@ -850,12 +861,12 @@ class Stack(object):
     def export(self, reset):
         """Exports a Pulumi stack"""
 
-        stack = pulumi_init(self)
-        deployment = stack.export_stack()
+        pulumi_stack = pulumi_init(self)
+        deployment = pulumi_stack.export_stack()
 
         if reset:
             deployment.deployment.pop("pending_operations", None)
-            stack.import_stack(deployment)
+            pulumi_stack.import_stack(deployment)
             logger.info("Removed all pending_operations from %s" % self.stackname)
         else:
             print(json.dumps(deployment.deployment))
@@ -866,12 +877,14 @@ class Stack(object):
     def set_config(self, key, value, secret):
         """Set a config or secret"""
 
-        stack = pulumi_init(self)
-        stack.set_config(key, pulumi.automation.ConfigValue(value, secret))
+        pulumi_stack = pulumi_init(self, create=True)
+        pulumi_stack.set_config(key, pulumi.automation.ConfigValue(value, secret))
 
         # Store salt or key and encrypted value in CloudBender stack config
         settings = None
-        pulumi_settings = stack.workspace.stack_settings(stack.name)._serialize()
+        pulumi_settings = pulumi_stack.workspace.stack_settings(
+            pulumi_stack.name
+        )._serialize()
 
         with open(self.path, "r") as file:
             settings = yaml.safe_load(file)
@@ -899,8 +912,7 @@ class Stack(object):
     def get_config(self, key):
         """Get a config or secret"""
 
-        stack = pulumi_init(self)
-        print(stack.get_config(key).value)
+        print(pulumi_init(self).get_config(key).value)
 
     def create_change_set(self, change_set_name):
         """Creates a Change Set with the name ``change_set_name``."""

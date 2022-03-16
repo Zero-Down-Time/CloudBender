@@ -11,7 +11,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def pulumi_init(stack):
+def pulumi_init(stack, create=False):
 
     # Fail early if pulumi binaries are not available
     if not shutil.which("pulumi"):
@@ -51,6 +51,8 @@ def pulumi_init(stack):
             "Cannot find Pulumi implementation for {}".format(stack.stackname)
         )
 
+    # Store internal pulumi code reference
+    stack._pulumi_code = _stack
     project_name = stack.parameters["Conglomerate"]
 
     # Remove stacknameprefix if equals Conglomerate as Pulumi implicitly prefixes project_name
@@ -102,8 +104,10 @@ def pulumi_init(stack):
 
     else:
         try:
-            if _stack.IKNOWHATIDO:
-                logger.warning("Missing pulumi.secretsProvider setting, IKNOWHATIDO enabled ... ")
+            if stack._pulumi_code.IKNOWHATIDO:
+                logger.warning(
+                    "Missing pulumi.secretsProvider setting, IKNOWHATIDO enabled ... "
+                )
                 secrets_provider = None
         except AttributeError:
             raise ValueError("Missing pulumi.secretsProvider setting!")
@@ -111,12 +115,12 @@ def pulumi_init(stack):
     # Set tag for stack file name and version
     _tags = stack.tags
     try:
-        _version = _stack.VERSION
+        _version = stack._pulumi_code.VERSION
     except AttributeError:
         _version = "undefined"
 
     _tags["zero-downtime.net/cloudbender"] = "{}:{}".format(
-        os.path.basename(_stack.__file__), _version
+        os.path.basename(stack._pulumi_code.__file__), _version
     )
 
     _config = {
@@ -151,14 +155,23 @@ def pulumi_init(stack):
         secrets_provider=secrets_provider,
     )
 
-    stack = pulumi.automation.create_or_select_stack(
-        stack_name=pulumi_stackname,
-        project_name=project_name,
-        program=_stack.pulumi_program,
-        opts=ws_opts,
-    )
-    stack.workspace.install_plugin(
-        "aws", pkg_resources.get_distribution("pulumi_aws").version
-    )
+    if create:
+        pulumi_stack = pulumi.automation.create_or_select_stack(
+            stack_name=pulumi_stackname,
+            project_name=project_name,
+            program=stack._pulumi_code.pulumi_program,
+            opts=ws_opts,
+        )
+        pulumi_stack.workspace.install_plugin(
+            "aws", pkg_resources.get_distribution("pulumi_aws").version
+        )
 
-    return stack
+    else:
+        pulumi_stack = pulumi.automation.select_stack(
+            stack_name=pulumi_stackname,
+            project_name=project_name,
+            program=stack._pulumi_code.pulumi_program,
+            opts=ws_opts,
+        )
+
+    return pulumi_stack
