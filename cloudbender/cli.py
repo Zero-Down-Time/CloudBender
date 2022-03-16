@@ -171,6 +171,22 @@ def export(cb, stack_name, reset=False):
 
 @click.command()
 @click.argument("stack_name")
+@click.pass_obj
+def assimilate(cb, stack_name):
+    """Imports potentially existing resources into Pulumi stack"""
+    stacks = _find_stacks(cb, [stack_name])
+
+    for s in stacks:
+        if s.mode == "pulumi":
+            s.assimilate()
+        else:
+            logger.info(
+                "{} uses Cloudformation, cannot assimilate.".format(s.stackname)
+            )
+
+
+@click.command()
+@click.argument("stack_name")
 @click.argument("key")
 @click.argument("value")
 @click.option("--secret", is_flag=True, help="Value is a secret")
@@ -391,6 +407,7 @@ cli.add_command(preview)
 cli.add_command(set_config)
 cli.add_command(get_config)
 cli.add_command(export)
+cli.add_command(assimilate)
 
 if __name__ == "__main__":
     cli(obj={})
