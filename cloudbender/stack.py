@@ -526,6 +526,16 @@ class Stack(object):
                 )
                 ensure_dir(os.path.join(self.ctx["outputs_path"], self.rel_path))
 
+                # Blacklist at least AWS SecretKeys from leaking into git
+                # Pulumi to the rescue soon
+                blacklist = [".*SecretAccessKey.*"]
+                sanitized_outputs = {}
+                for k in self.outputs.keys():
+                    sanitized_outputs[k] = self.outputs[k]
+                    for val in blacklist:
+                        if re.match(val, k, re.IGNORECASE):
+                            sanitized_outputs[k] = "<Redacted>"
+
                 jenv = JinjaEnv()
                 template = jenv.from_string(my_template)
                 data = {
@@ -533,7 +543,7 @@ class Stack(object):
                     "timestamp": datetime.strftime(
                         datetime.now(tzutc()), "%d/%m/%y %H:%M"
                     ),
-                    "outputs": self.outputs,
+                    "outputs": sanitized_outputs,
                     "parameters": self.parameters,
                 }
 
@@ -840,7 +850,7 @@ class Stack(object):
     def preview(self):
         """Preview a Pulumi stack up operation"""
 
-        pulumi_init(self).preview(on_output=self._log_pulumi)
+        pulumi_init(self, create=True).preview(on_output=self._log_pulumi)
 
         return
 
@@ -852,19 +862,25 @@ class Stack(object):
 
         # now lets import each defined resource
         for r in self._pulumi_code.RESOURCES:
-            args = ["import", r["type"], r["name"], r["id"], "--yes"]
+            r_id = r["id"]
+            if not r_id:
+                r_id = input("Please enter ID for {} ({}):".format(r["name"], r["type"]))
+
+            logger.info("Importing {} ({}) as {}".format(r_id, r["type"], r["name"]))
+
+            args = ["import", r["type"], r["name"], r_id, "--yes"]
             pulumi_stack._run_pulumi_cmd_sync(args)
 
         return
 
     @pulumi_ws
-    def export(self, reset):
+    def export(self, remove_pending_operations):
         """Exports a Pulumi stack"""
 
         pulumi_stack = pulumi_init(self)
         deployment = pulumi_stack.export_stack()
 
-        if reset:
+        if remove_pending_operations:
             deployment.deployment.pop("pending_operations", None)
             pulumi_stack.import_stack(deployment)
             logger.info("Removed all pending_operations from %s" % self.stackname)
