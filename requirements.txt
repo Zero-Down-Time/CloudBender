@@ -1,5 +1,5 @@
 boto3
-Jinja2
+Jinja2>=3.0.0
 click
 pyminifier
 cfn-lint>=0.34
