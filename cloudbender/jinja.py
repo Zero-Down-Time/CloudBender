@@ -9,6 +9,7 @@ import subprocess
 import sys
 
 import jinja2
+import markupsafe
 from jinja2.filters import make_attrgetter
 from jinja2.runtime import Undefined
 
@@ -53,7 +54,7 @@ def include_raw_gz(context, files=None, gz=True, remove_comments=False):
     # For shell script we can even remove whitespaces so treat them individually
     # sed -e '2,$ {/^ *$/d ; /^ *#/d ; /^[ \t] *#/d ; /*^/d ; s/^[ \t]*// ; s/*[ \t]$// ; s/ $//}'
     for name in files:
-        output = output + jinja2.Markup(jenv.loader.get_source(jenv, name)[0])
+        output = output + markupsafe.Markup(jenv.loader.get_source(jenv, name)[0])
 
     if remove_comments:
         # Remove full line comments but not shebang
