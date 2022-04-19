@@ -36,7 +36,7 @@ upload: $(PACKAGE_FILE)
 	twine upload --repository-url https://upload.pypi.org/legacy/ dist/cloudbender-*.whl
 
 build:
-	podman build --rm --squash-all -t $(REPOSITORY):$(TAG) -t $(REPOSITORY):latest .
+	podman build --rm -t $(REPOSITORY):$(TAG) -t $(REPOSITORY):latest .
 
 test:
 	@echo "Not implemented (yet)"

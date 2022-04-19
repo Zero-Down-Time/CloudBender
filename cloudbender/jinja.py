@@ -23,7 +23,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-@jinja2.contextfunction
+@jinja2.pass_context
 def option(context, attribute, default_value="", source="options"):
     """Get attribute from options data structure, default_value otherwise"""
     environment = context.environment
@@ -45,7 +45,7 @@ def option(context, attribute, default_value="", source="options"):
         return default_value
 
 
-@jinja2.contextfunction
+@jinja2.pass_context
 def include_raw_gz(context, files=None, gz=True, remove_comments=False):
     jenv = context.environment
     output = ""
@@ -88,7 +88,7 @@ def include_raw_gz(context, files=None, gz=True, remove_comments=False):
     return base64.b64encode(buf.getvalue()).decode("utf-8")
 
 
-@jinja2.contextfunction
+@jinja2.pass_context
 def raise_helper(context, msg):
     raise Exception(msg)
 
