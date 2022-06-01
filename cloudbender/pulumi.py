@@ -113,22 +113,25 @@ def pulumi_init(stack, create=False):
             raise ValueError("Missing pulumi.secretsProvider setting!")
 
     # Set tag for stack file name and version
-    _tags = stack.tags
+    _tags = {}
     try:
         _version = stack._pulumi_code.VERSION
     except AttributeError:
         _version = "undefined"
 
-    _tags["zero-downtime.net/cloudbender"] = "{}:{}".format(
+    # Tag all resources with our metadata, allowing "prune" eventually
+    _tags["zero-downtime.net/cloudbender/source"] = "{}:{}".format(
         os.path.basename(stack._pulumi_code.__file__), _version
     )
+    _tags["zero-downtime.net/cloudbender/owner"] = f"{project_name}.{pulumi_stackname}"
 
     _config = {
         "aws:region": stack.region,
-        "aws:profile": stack.profile,
         "aws:defaultTags": {"tags": _tags},
         "zdt:region": stack.region,
         "zdt:awsAccountId": account_id,
+        "zdt:projectName": project_name,
+        "zdt:stackName": pulumi_stackname
     }
 
     # inject all parameters as config in the <Conglomerate> namespace
