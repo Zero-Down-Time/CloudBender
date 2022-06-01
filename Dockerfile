@@ -1,6 +1,6 @@
 ARG RUNTIME_VERSION="3.8"
 ARG DISTRO_VERSION="3.15"
-ARG PULUMI_VERSION="3.29.1"
+ARG PULUMI_VERSION="3.33.2"
 
 FROM python:${RUNTIME_VERSION}-alpine${DISTRO_VERSION} AS builder
 ARG PULUMI_VERSION
@@ -35,13 +35,19 @@ COPY . /app
 RUN pip install -r requirements.txt
 RUN pip install . --no-deps
 
+# minimal pulumi
+RUN cd /root/.pulumi/bin && rm -f *dotnet *nodejs *go *java && strip pulumi* || true
 
 
 # Now build the final runtime
 FROM python:${RUNTIME_VERSION}-alpine${DISTRO_VERSION}
 
-# Install GCC (Alpine uses musl but we compile and link dependencies with GCC)
-RUN apk add --no-cache \
+    #cd /etc/apk/keys && \
+    #echo "@testing http://dl-cdn.alpinelinux.org/alpine/edge/testing" >> /etc/apk/repositories && \
+    #cfssl@testing \
+
+RUN apk upgrade -U --available --no-cache && \
+    apk add --no-cache \
     libstdc++ \
     libc6-compat \
     ca-certificates \
@@ -50,9 +56,8 @@ RUN apk add --no-cache \
 COPY --from=builder /venv /venv
 COPY --from=builder /root/.pulumi/bin /usr/local/bin
 RUN mkdir /workspace && \
-    cd /usr/bin && ln -s podman docker && \
-    cd /usr/local/bin && \
-    rm -f *dotnet *nodejs *go
+    cd /usr/bin && ln -s podman docker
+
 WORKDIR /workspace
 
 ENV VIRTUAL_ENV=/venv

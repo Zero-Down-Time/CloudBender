@@ -17,7 +17,7 @@ endif
 all: pybuild pytest
 
 dev_setup:
-	pip install -r dev-requirements.txt --user
+	pip install -U -r dev-requirements.txt --user
 
 pytest:
 	flake8 cloudbender tests
