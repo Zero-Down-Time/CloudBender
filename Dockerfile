@@ -1,6 +1,6 @@
 ARG RUNTIME_VERSION="3.8"
 ARG DISTRO_VERSION="3.15"
-ARG PULUMI_VERSION="3.33.2"
+ARG PULUMI_VERSION="3.34.0"
 
 FROM python:${RUNTIME_VERSION}-alpine${DISTRO_VERSION} AS builder
 ARG PULUMI_VERSION
@@ -51,6 +51,7 @@ RUN apk upgrade -U --available --no-cache && \
     libstdc++ \
     libc6-compat \
     ca-certificates \
+    aws-cli \
     podman
 
 COPY --from=builder /venv /venv
