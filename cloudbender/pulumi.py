@@ -120,10 +120,10 @@ def pulumi_init(stack, create=False):
         _version = "undefined"
 
     # Tag all resources with our metadata, allowing "prune" eventually
-    _tags["zero-downtime.net/cloudbender/source"] = "{}:{}".format(
+    _tags["zdt:cloudbender.source"] = "{}:{}".format(
         os.path.basename(stack._pulumi_code.__file__), _version
     )
-    _tags["zero-downtime.net/cloudbender/owner"] = f"{project_name}.{pulumi_stackname}"
+    _tags["zdt:cloudbender.owner"] = f"{project_name}.{pulumi_stackname}"
 
     _config = {
         "aws:region": stack.region,
