@@ -4,9 +4,10 @@ Jinja2>=3.0.0
 click
 pyminifier
 cfn-lint>=0.34
-pulumi
-pulumi-aws
+pulumi>=3.35.0
+pulumi-aws>5.0.0
 pulumi-aws-native
+pulumi-policy
 # apprise
 
 # flake8
