@@ -723,7 +723,8 @@ class Stack(object):
         """Creates a stack"""
 
         if self.mode == "pulumi":
-            pulumi_init(self, create=True).up(on_output=self._log_pulumi)
+            kwargs = self._set_pulumi_args()
+            pulumi_init(self, create=True).up(**kwargs)
 
         else:
             # Prepare parameters
@@ -850,7 +851,8 @@ class Stack(object):
     def preview(self):
         """Preview a Pulumi stack up operation"""
 
-        pulumi_init(self, create=True).preview(on_output=self._log_pulumi)
+        kwargs = self._set_pulumi_args()
+        pulumi_init(self, create=True).preview(**kwargs)
 
         return
 
@@ -864,7 +866,9 @@ class Stack(object):
         for r in self._pulumi_code.RESOURCES:
             r_id = r["id"]
             if not r_id:
-                r_id = input("Please enter ID for {} ({}):".format(r["name"], r["type"]))
+                r_id = input(
+                    "Please enter ID for {} ({}):".format(r["name"], r["type"])
+                )
 
             logger.info("Importing {} ({}) as {}".format(r_id, r["type"], r["name"]))
 
@@ -1148,3 +1152,28 @@ class Stack(object):
         )
         if text and not text.isspace():
             logger.info(" ".join([self.region, self.stackname, text]))
+
+    def _set_pulumi_args(self, kwargs={}):
+        kwargs["on_output"] = self._log_pulumi
+        kwargs["policy_packs"] = []
+        kwargs["policy_pack_configs"] = []
+
+        # Try to find policies in each artifact location
+        if "policies" in self.pulumi:
+            for policy in self.pulumi["policies"]:
+                found = False
+                for artifacts_path in self.ctx["artifact_paths"]:
+                    path = "{}/pulumi/policies/{}".format(artifacts_path.resolve(), policy)
+                    if os.path.exists(path):
+                        kwargs["policy_packs"].append(path)
+                        found = True
+                if not found:
+                    logger.error(f"Could not find policy implementation for {policy}!")
+                    raise FileNotFoundError
+
+        try:
+            kwargs["policy_pack_configs"] = self.pulumi["policy_configs"]
+        except KeyError:
+            pass
+
+        return kwargs
