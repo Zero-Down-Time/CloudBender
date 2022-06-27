@@ -39,8 +39,10 @@ RUN pip install . --no-deps
 RUN cd /root/.pulumi/bin && rm -f *dotnet *nodejs *go *java && strip pulumi* || true
 
 
-# Now build the final runtime
+# Now build the final runtime, incl. running rootless containers
 FROM python:${RUNTIME_VERSION}-alpine${DISTRO_VERSION}
+
+ARG USER=cloudbender
 
     #cd /etc/apk/keys && \
     #echo "@testing http://dl-cdn.alpinelinux.org/alpine/edge/testing" >> /etc/apk/repositories && \
@@ -52,20 +54,46 @@ RUN apk upgrade -U --available --no-cache && \
     libc6-compat \
     ca-certificates \
     aws-cli \
-    podman
+    fuse-overlayfs \
+    podman \
+    buildah \
+    strace
 
 COPY --from=builder /venv /venv
 COPY --from=builder /root/.pulumi/bin /usr/local/bin
-RUN mkdir /workspace && \
+
+# Dont run as root by default
+RUN addgroup $USER && adduser $USER -G $USER -D && \
+    mkdir -p /home/$USER/.local/share/containers && \
+    chown $USER:$USER -R /home/$USER
+
+# Rootless podman
+# https://github.com/containers/podman/blob/main/contrib/podmanimage/stable/Containerfile
+ADD conf/containers.conf conf/registries.conf conf/storage.conf /etc/containers/
+ADD --chown=$USER:$USER conf/podman-containers.conf /home/$USER/.config/containers/containers.conf
+
+RUN mkdir -p /var/lib/shared/overlay-images /var/lib/shared/overlay-layers \
+             /var/lib/shared/vfs-images /var/lib/shared/vfs-layers && \
+    touch /var/lib/shared/overlay-images/images.lock /var/lib/shared/overlay-layers/layers.lock \
+          /var/lib/shared/vfs-images/images.lock /var/lib/shared/vfs-layers/layers.lock && \
+		mkdir /tmp/podman-run-1000 && chown $USER:$USER /tmp/podman-run-1000 && chmod 700 /tmp/podman-run-1000 && \
+    echo -e "$USER:1:999\n$USER:1001:64535" > /etc/subuid && \
+    echo -e "$USER:1:999\n$USER:1001:64535" > /etc/subgid && \
+    mkdir /workspace && \
     cd /usr/bin && ln -s podman docker
 
 WORKDIR /workspace
 
+ENV XDG_RUNTIME_DIR=/tmp/podman-run-1000
+ENV _CONTAINERS_USERNS_CONFIGURED=""
+ENV BUILDAH_ISOLATION=chroot
+
 ENV VIRTUAL_ENV=/venv
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
-# Dont run as root by default
-RUN addgroup cloudbender && adduser cloudbender -G cloudbender -D
-USER cloudbender
+USER $USER
+
+# Allow container layers to be stored in PVCs
+VOLUME /home/$USER/.local/share/containers
 
 CMD ["cloudbender"]

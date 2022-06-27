@@ -152,8 +152,30 @@ def refresh(cb, stack_name):
 
 @click.command()
 @click.argument("stack_name")
+@click.argument("function", default="")
+@click.argument('args', nargs=-1)
 @click.option(
-    "-r", "--remove-pending-operations",
+    "--listall",
+    is_flag=True,
+    help="List all available execute functions for this stack",
+)
+@click.pass_obj
+def execute(cb, stack_name, function, args, listall=False):
+    """Executes custom Python function within an existing stack context"""
+    stacks = _find_stacks(cb, [stack_name])
+
+    for s in stacks:
+        if s.mode == "pulumi":
+            s.execute(function, args, listall)
+        else:
+            logger.info("{} uses Cloudformation, no exec feature available.".format(s.stackname))
+
+
+@click.command()
+@click.argument("stack_name")
+@click.option(
+    "-r",
+    "--remove-pending-operations",
     is_flag=True,
     help="All pending stack operations are removed and the stack will be re-imported",
 )
@@ -408,6 +430,7 @@ cli.add_command(set_config)
 cli.add_command(get_config)
 cli.add_command(export)
 cli.add_command(assimilate)
+cli.add_command(execute)
 
 if __name__ == "__main__":
     cli(obj={})

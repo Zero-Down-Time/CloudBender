@@ -1,8 +1,5 @@
-import os
 import sys
 import subprocess
-import tempfile
-import shutil
 from functools import wraps
 
 from .exceptions import InvalidHook
@@ -31,25 +28,6 @@ def exec_hooks(func):
         # Only execute post hook for successful actions
         if response == "COMPLETE":
             execute_hooks(self.hooks.get("post_" + func.__name__, []), self)
-
-        return response
-
-    return decorated
-
-
-def pulumi_ws(func):
-    @wraps(func)
-    def decorated(self, *args, **kwargs):
-        # setup temp workspace
-        self.work_dir = tempfile.mkdtemp(
-            dir=tempfile.gettempdir(), prefix="cloudbender-"
-        )
-
-        response = func(self, *args, **kwargs)
-
-        # Cleanup temp workspace
-        if os.path.exists(self.work_dir):
-            shutil.rmtree(self.work_dir)
 
         return response
 

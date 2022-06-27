@@ -7,6 +7,7 @@ import time
 import pathlib
 import pprint
 import pulumi
+import pkg_resources
 
 from datetime import datetime, timedelta
 from dateutil.tz import tzutc
@@ -18,14 +19,13 @@ from .connection import BotoConnection
 from .jinja import JinjaEnv, read_config_file
 from . import __version__
 from .exceptions import ParameterNotFound, ParameterIllegalValue, ChecksumError
-from .hooks import exec_hooks, pulumi_ws
-from .pulumi import pulumi_init
+from .hooks import exec_hooks
+from .pulumi import pulumi_ws
 
 import cfnlint.core
 import cfnlint.template
 import cfnlint.graph
 
-import importlib.resources as pkg_resources
 from . import templates
 
 import logging
@@ -81,9 +81,13 @@ class Stack(object):
         self.default_lock = None
         self.multi_delete = True
         self.template_bucket_url = None
+
         self.work_dir = None
         self.pulumi = {}
         self._pulumi_stack = None
+        self.pulumi_stackname = ""
+        self.pulumi_config = {}
+        self.pulumi_ws_opts = None
 
     def dump_config(self):
         logger.debug("<Stack {}: {}>".format(self.id, pprint.pformat(vars(self))))
@@ -484,7 +488,7 @@ class Stack(object):
         """gets outputs of the stack"""
 
         if self.mode == "pulumi":
-            self.outputs = pulumi_init(self).outputs()
+            self.outputs = self._get_pulumi_stack().outputs()
 
         else:
             self.read_template_file()
@@ -724,7 +728,7 @@ class Stack(object):
 
         if self.mode == "pulumi":
             kwargs = self._set_pulumi_args()
-            pulumi_init(self, create=True).up(**kwargs)
+            self._get_pulumi_stack(create=True).up(**kwargs)
 
         else:
             # Prepare parameters
@@ -822,7 +826,7 @@ class Stack(object):
         logger.info("Deleting {0} {1}".format(self.region, self.stackname))
 
         if self.mode == "pulumi":
-            pulumi_stack = pulumi_init(self)
+            pulumi_stack = self._get_pulumi_stack()
             pulumi_stack.destroy(on_output=self._log_pulumi)
             pulumi_stack.workspace.remove_stack(pulumi_stack.name)
 
@@ -843,7 +847,7 @@ class Stack(object):
     def refresh(self):
         """Refreshes a Pulumi stack"""
 
-        pulumi_init(self).refresh(on_output=self._log_pulumi)
+        self._get_pulumi_stack().refresh(on_output=self._log_pulumi)
 
         return
 
@@ -852,15 +856,44 @@ class Stack(object):
         """Preview a Pulumi stack up operation"""
 
         kwargs = self._set_pulumi_args()
-        pulumi_init(self, create=True).preview(**kwargs)
+        self._get_pulumi_stack(create=True).preview(**kwargs)
 
         return
+
+    @pulumi_ws
+    def execute(self, function, args, listall=False):
+        """Executes custom Python function within a Pulumi stack"""
+
+        # call all available functions and output built in help
+        if listall:
+            for k in vars(self._pulumi_code).keys():
+                if k.startswith("_execute_"):
+                    docstring = vars(self._pulumi_code)[k](docstring=True)
+                    print("{}: {}".format(k.lstrip("_execute_"), docstring))
+            return
+
+        else:
+            if not function:
+                logger.error("No function specified !")
+                return
+
+            exec_function = f"_execute_{function}"
+            if exec_function in vars(self._pulumi_code):
+                pulumi_stack = self._get_pulumi_stack()
+                vars(self._pulumi_code)[exec_function](
+                    config=pulumi_stack.get_all_config(), outputs=pulumi_stack.outputs(), args=args
+                )
+
+            else:
+                logger.error(
+                    "{} is not defined in {}".format(function, self._pulumi_code)
+                )
 
     @pulumi_ws
     def assimilate(self):
         """Import resources into Pulumi stack"""
 
-        pulumi_stack = pulumi_init(self, create=True)
+        pulumi_stack = self._get_pulumi_stack(create=True)
 
         # now lets import each defined resource
         for r in self._pulumi_code.RESOURCES:
@@ -881,7 +914,7 @@ class Stack(object):
     def export(self, remove_pending_operations):
         """Exports a Pulumi stack"""
 
-        pulumi_stack = pulumi_init(self)
+        pulumi_stack = self._get_pulumi_stack()
         deployment = pulumi_stack.export_stack()
 
         if remove_pending_operations:
@@ -897,7 +930,7 @@ class Stack(object):
     def set_config(self, key, value, secret):
         """Set a config or secret"""
 
-        pulumi_stack = pulumi_init(self, create=True)
+        pulumi_stack = self._get_pulumi_stack(create=True)
         pulumi_stack.set_config(key, pulumi.automation.ConfigValue(value, secret))
 
         # Store salt or key and encrypted value in CloudBender stack config
@@ -932,7 +965,7 @@ class Stack(object):
     def get_config(self, key):
         """Get a config or secret"""
 
-        print(pulumi_init(self).get_config(key).value)
+        print(self._get_pulumi_stack().get_config(key).value)
 
     def create_change_set(self, change_set_name):
         """Creates a Change Set with the name ``change_set_name``."""
@@ -1153,6 +1186,29 @@ class Stack(object):
         if text and not text.isspace():
             logger.info(" ".join([self.region, self.stackname, text]))
 
+    def _get_pulumi_stack(self, create=False):
+
+        if create:
+            pulumi_stack = pulumi.automation.create_or_select_stack(
+                stack_name=self.pulumi_stackname,
+                project_name=self.parameters["Conglomerate"],
+                program=self._pulumi_code.pulumi_program,
+                opts=self.pulumi_ws_opts,
+            )
+            pulumi_stack.workspace.install_plugin(
+                "aws", pkg_resources.get_distribution("pulumi_aws").version
+            )
+
+        else:
+            pulumi_stack = pulumi.automation.select_stack(
+                stack_name=self.pulumi_stackname,
+                project_name=self.parameters["Conglomerate"],
+                program=self._pulumi_code.pulumi_program,
+                opts=self.pulumi_ws_opts,
+            )
+
+        return pulumi_stack
+
     def _set_pulumi_args(self, kwargs={}):
         kwargs["on_output"] = self._log_pulumi
         kwargs["policy_packs"] = []
@@ -1163,7 +1219,9 @@ class Stack(object):
             for policy in self.pulumi["policies"]:
                 found = False
                 for artifacts_path in self.ctx["artifact_paths"]:
-                    path = "{}/pulumi/policies/{}".format(artifacts_path.resolve(), policy)
+                    path = "{}/pulumi/policies/{}".format(
+                        artifacts_path.resolve(), policy
+                    )
                     if os.path.exists(path):
                         kwargs["policy_packs"].append(path)
                         found = True
