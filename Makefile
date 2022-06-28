@@ -14,10 +14,7 @@ endif
 
 .PHONY: pytest build test_upload upload all dev_setup pybuild
 
-all: pybuild pytest
-
-dev_setup:
-	pip install -U -r dev-requirements.txt --user
+all: pytest pybuild
 
 pytest:
 	flake8 cloudbender tests
@@ -27,7 +24,7 @@ clean:
 	rm -rf .cache build .coverage .eggs cloudbender.egg-info .pytest_cache dist
 
 pybuild:
-	python setup.py bdist_wheel --universal
+	hatchling build
 
 test_upload: $(PACKAGE_FILE)
 	twine upload --repository-url https://test.pypi.org/legacy/ dist/cloudbender-*.whl

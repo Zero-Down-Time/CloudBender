@@ -7,17 +7,14 @@ import yaml
 import copy
 import subprocess
 import sys
+import zlib
 
 import jinja2
+import python_minifier
 import markupsafe
+
 from jinja2.filters import make_attrgetter
 from jinja2.runtime import Undefined
-
-import pyminifier.token_utils
-import pyminifier.minification
-import pyminifier.compression
-import pyminifier.obfuscate
-import types
 
 import logging
 
@@ -129,40 +126,41 @@ def sub(value="", pattern="", replace="", ignorecase=False):
     return re.sub(pattern, replace, value, flags=flags)
 
 
-def pyminify(source, obfuscate=False, minify=True):
-    # pyminifier options
-    options = types.SimpleNamespace(
-        tabs=False,
-        replacement_length=1,
-        use_nonlatin=0,
-        obfuscate=0,
-        obf_variables=1,
-        obf_classes=0,
-        obf_functions=0,
-        obf_import_methods=0,
-        obf_builtins=0,
-    )
+def pyminify(source):
+    minified = python_minifier.awslambda(source, filename=None, entrypoint=None)
+    gz_source = gz_pack(minified)
 
-    tokens = pyminifier.token_utils.listified_tokenizer(source)
-
-    if minify:
-        source = pyminifier.minification.minify(tokens, options)
-        tokens = pyminifier.token_utils.listified_tokenizer(source)
-
-    if obfuscate:
-        name_generator = pyminifier.obfuscate.obfuscation_machine(use_unicode=False)
-        pyminifier.obfuscate.obfuscate(
-            "__main__", tokens, options, name_generator=name_generator
-        )
-        # source = pyminifier.obfuscate.apply_obfuscation(source)
-
-    source = pyminifier.token_utils.untokenize(tokens)
-    # logger.info(source)
-    minified_source = pyminifier.compression.gz_pack(source)
     logger.info(
-        "Compressed python code from {} to {}".format(len(source), len(minified_source))
+        "Compressed python code from {} to {}".format(len(source), len(gz_source))
     )
-    return minified_source
+    return gz_source
+
+
+# From pyminifier
+def gz_pack(source):
+    """
+    Returns 'source' as a gzip-compressed, self-extracting python script.
+
+    .. note::
+
+        This method uses up more space than the zip_pack method but it has the
+        advantage in that the resulting .py file can still be imported into a
+        python program.
+    """
+    out = ""
+    # Preserve shebangs (don't care about encodings for this)
+    first_line = source.split("\n")[0]
+    if re.compile('^#!.*$').match(first_line):
+        if first_line.rstrip().endswith("python"):
+            first_line = first_line.rstrip()
+            first_line += "3"
+        out = first_line + "\n"
+    compressed_source = zlib.compress(source.encode("utf-8"))
+    out += "import zlib, base64\n"
+    out += "exec(zlib.decompress(base64.b64decode('"
+    out += base64.b64encode(compressed_source).decode("utf-8")
+    out += "')))\n"
+    return out
 
 
 def inline_yaml(block):

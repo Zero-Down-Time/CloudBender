@@ -1,8 +1,0 @@
-boto3
-Jinja2
-click
-pyminifier
-cfn-lint>=0.34
-pulumi
-pulumi-aws
-pulumi-aws-native
