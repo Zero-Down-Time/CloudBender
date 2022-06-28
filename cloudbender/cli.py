@@ -8,8 +8,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from . import __version__
 from .core import CloudBender
-from .utils import setup_logging
+from .utils import setup_logging, get_docker_version
 from .exceptions import InvalidProjectDir
+from .pulumi import get_pulumi_version
 
 import logging
 
@@ -17,7 +18,6 @@ logger = logging.getLogger(__name__)
 
 
 @click.group()
-@click.version_option(version=__version__, prog_name="CloudBender")
 @click.option("--debug", is_flag=True, help="Turn on debug logging.")
 @click.option("--dir", "directory", help="Specify cloudbender project directory.")
 @click.pass_context
@@ -44,6 +44,30 @@ def cli(ctx, debug, directory):
     cb.dump_config()
 
     ctx.obj = cb
+
+
+@click.command()
+@click.pass_obj
+def version(cb):
+    """Displays own version and all dependencies"""
+    logger.error(f"CloudBender: {__version__}")
+
+    # Pulumi
+    # import pdb;pdb.set_trace()
+    pulumi_version = get_pulumi_version()
+    if not pulumi_version:
+        logger.error(
+            "Pulumi: Error calling pulumi, see https://www.pulumi.com/docs/get-started/install/"
+        )
+    else:
+        logger.error(f"Pulumi: {pulumi_version}")
+
+    # Docker / podman
+    docker_version = get_docker_version()
+    if not docker_version:
+        logger.error("Podman/Docker: Cannot call podman nor docker")
+    else:
+        logger.error(f"Podman/Docker: {docker_version}")
 
 
 @click.command()
@@ -153,7 +177,7 @@ def refresh(cb, stack_name):
 @click.command()
 @click.argument("stack_name")
 @click.argument("function", default="")
-@click.argument('args', nargs=-1)
+@click.argument("args", nargs=-1)
 @click.option(
     "--listall",
     is_flag=True,
@@ -168,7 +192,9 @@ def execute(cb, stack_name, function, args, listall=False):
         if s.mode == "pulumi":
             s.execute(function, args, listall)
         else:
-            logger.info("{} uses Cloudformation, no exec feature available.".format(s.stackname))
+            logger.info(
+                "{} uses Cloudformation, no exec feature available.".format(s.stackname)
+            )
 
 
 @click.command()
@@ -415,6 +441,7 @@ def _provision(cb, stacks):
                         future.result()
 
 
+cli.add_command(version)
 cli.add_command(render)
 cli.add_command(sync)
 cli.add_command(validate)

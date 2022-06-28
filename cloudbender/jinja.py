@@ -150,7 +150,7 @@ def gz_pack(source):
     out = ""
     # Preserve shebangs (don't care about encodings for this)
     first_line = source.split("\n")[0]
-    if re.compile('^#!.*$').match(first_line):
+    if re.compile("^#!.*$").match(first_line):
         if first_line.rstrip().endswith("python"):
             first_line = first_line.rstrip()
             first_line += "3"

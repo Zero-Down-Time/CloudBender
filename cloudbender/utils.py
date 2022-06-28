@@ -2,6 +2,24 @@ import os
 import copy
 import logging
 import re
+import shutil
+import subprocess
+
+
+def get_docker_version():
+    p = shutil.which("podman")
+    if not p:
+        p = shutil.which("docker")
+        if not p:
+            return None
+
+    proc = subprocess.Popen(
+        [p, "--version"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL
+    )
+    if not proc.returncode:
+        return proc.communicate()[0].decode().strip()
+    else:
+        return None
 
 
 def dict_merge(a, b):

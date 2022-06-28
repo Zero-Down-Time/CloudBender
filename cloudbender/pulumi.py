@@ -5,17 +5,30 @@ import shutil
 import tempfile
 import importlib
 import pulumi
+import subprocess
+
 from functools import wraps
 
 import logging
 
 logger = logging.getLogger(__name__)
 
-# Fail early if pulumi binaries are not available
-if not shutil.which("pulumi"):
-    raise FileNotFoundError(
-        "Cannot find pulumi binary, see https://www.pulumi.com/docs/get-started/install/"
+# Disable Pulumis version check globally
+os.environ["PULUMI_SKIP_UPDATE_CHECK"] = "true"
+
+
+def get_pulumi_version():
+    p = shutil.which("pulumi")
+    if not p:
+        return None
+
+    proc = subprocess.Popen(
+        [p, "version"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL
     )
+    if not proc.returncode:
+        return proc.communicate()[0].decode().strip()
+    else:
+        return None
 
 
 def pulumi_ws(func):
@@ -36,7 +49,9 @@ def pulumi_ws(func):
             _found = False
             try:
                 _stack = importlib.import_module(
-                    "config.{}.{}".format(self.rel_path, self.template).replace("/", ".")
+                    "config.{}.{}".format(self.rel_path, self.template).replace(
+                        "/", "."
+                    )
                 )
                 _found = True
 
@@ -45,7 +60,9 @@ def pulumi_ws(func):
                     try:
                         spec = importlib.util.spec_from_file_location(
                             "_stack",
-                            "{}/pulumi/{}.py".format(artifacts_path.resolve(), self.template),
+                            "{}/pulumi/{}.py".format(
+                                artifacts_path.resolve(), self.template
+                            ),
                         )
                         _stack = importlib.util.module_from_spec(spec)
                         spec.loader.exec_module(_stack)
@@ -66,7 +83,9 @@ def pulumi_ws(func):
             project_name = self.parameters["Conglomerate"]
 
             # Remove stacknameprefix if equals Conglomerate as Pulumi implicitly prefixes project_name
-            self.pulumi_stackname = re.sub(r"^" + project_name + "-?", "", self.stackname)
+            self.pulumi_stackname = re.sub(
+                r"^" + project_name + "-?", "", self.stackname
+            )
             try:
                 pulumi_backend = "{}/{}/{}".format(
                     self.pulumi["backend"], project_name, self.region
@@ -111,7 +130,9 @@ def pulumi_ws(func):
                     secrets_provider == "passphrase"
                     and "PULUMI_CONFIG_PASSPHRASE" not in os.environ
                 ):
-                    raise ValueError("Missing PULUMI_CONFIG_PASSPHRASE environment variable!")
+                    raise ValueError(
+                        "Missing PULUMI_CONFIG_PASSPHRASE environment variable!"
+                    )
 
             else:
                 try:
@@ -136,20 +157,22 @@ def pulumi_ws(func):
             )
             _tags["zdt:cloudbender.owner"] = f"{project_name}.{self.pulumi_stackname}"
 
-            self.pulumi_config.update({
-                "aws:region": self.region,
-                "aws:defaultTags": {"tags": _tags},
-                "zdt:region": self.region,
-                "zdt:awsAccountId": account_id,
-                "zdt:projectName": project_name,
-                "zdt:stackName": self.pulumi_stackname
-            })
+            self.pulumi_config.update(
+                {
+                    "aws:region": self.region,
+                    "aws:defaultTags": {"tags": _tags},
+                    "zdt:region": self.region,
+                    "zdt:awsAccountId": account_id,
+                    "zdt:projectName": project_name,
+                    "zdt:stackName": self.pulumi_stackname,
+                }
+            )
 
             # inject all parameters as config in the <Conglomerate> namespace
             for p in self.parameters:
-                self.pulumi_config["{}:{}".format(self.parameters["Conglomerate"], p)] = self.parameters[
-                    p
-                ]
+                self.pulumi_config[
+                    "{}:{}".format(self.parameters["Conglomerate"], p)
+                ] = self.parameters[p]
 
             stack_settings = pulumi.automation.StackSettings(
                 config=self.pulumi_config,
