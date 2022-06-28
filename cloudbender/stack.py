@@ -7,7 +7,7 @@ import time
 import pathlib
 import pprint
 import pulumi
-import pkg_resources
+import importlib.resources as pkg_resources
 
 from datetime import datetime, timedelta
 from dateutil.tz import tzutc
@@ -518,12 +518,8 @@ class Stack(object):
 
         if self.outputs:
             if self.store_outputs:
-                try:
-                    filename = self.cfn_data["Metadata"]["CustomOutputs"]["Name"]
-                    my_template = self.cfn_data["Metadata"]["CustomOutputs"]["Template"]
-                except (TypeError, KeyError):
-                    filename = self.stackname + ".yaml"
-                    my_template = pkg_resources.read_text(templates, "outputs.yaml")
+                filename = self.stackname + ".yaml"
+                my_template = pkg_resources.read_text(templates, "outputs.yaml")
 
                 output_file = os.path.join(
                     self.ctx["outputs_path"], self.rel_path, filename

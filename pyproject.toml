@@ -1,0 +1,45 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cloudbender"
+dynamic = ["version"]
+authors = [
+  { name="Stefan Reimer", email="stefan@zero-downtime.net" },
+]
+description = "Toolset to render and manage AWS Cloudformation"
+readme = "README.md"
+license = { file="LICENSE.md" }
+requires-python = ">=3.7"
+dependencies = [
+        "boto3",
+        "mock",
+        "Jinja2>=3.0.0",
+        "click",
+        "cfn-lint>=0.34",
+        "python-minifier",
+        "pulumi>=3.35.0",
+        "pulumi-aws>5.0.0",
+        "pulumi-aws-native",
+        "pulumi-policy",
+]
+classifiers = [
+        "Development Status :: 4 - Beta",
+        "Environment :: Console",
+        "Operating System :: POSIX",
+        "Programming Language :: Python",
+        "License :: OSI Approved :: GNU Affero General Public License v3",
+]
+
+[project.urls]
+"Homepage" = "https://git.zero-downtime.net/ZeroDownTime/CloudBender"
+
+[project.scripts]
+cloudbender = "cloudbender.cli:cli"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.isort]
+profile = "black"
