@@ -24,31 +24,32 @@ logger = logging.getLogger(__name__)
 def cli(ctx, debug, directory):
     setup_logging(debug)
 
-    # Make sure our root is abs
-    if directory:
-        if not os.path.isabs(directory):
-            directory = os.path.normpath(os.path.join(os.getcwd(), directory))
-    elif os.getenv("CLOUDBENDER_PROJECT_ROOT"):
-        directory = os.getenv("CLOUDBENDER_PROJECT_ROOT")
-    else:
-        directory = os.getcwd()
+    # Skip parsing all the things if we just want the versions
+    if ctx.invoked_subcommand != "version":
+        # Make sure our root is abs
+        if directory:
+            if not os.path.isabs(directory):
+                directory = os.path.normpath(os.path.join(os.getcwd(), directory))
+        elif os.getenv("CLOUDBENDER_PROJECT_ROOT"):
+            directory = os.getenv("CLOUDBENDER_PROJECT_ROOT")
+        else:
+            directory = os.getcwd()
 
-    # Read global config
-    try:
-        cb = CloudBender(directory)
-    except InvalidProjectDir as e:
-        logger.error(e)
-        sys.exit(1)
+        # Read global config
+        try:
+            cb = CloudBender(directory)
+        except InvalidProjectDir as e:
+            logger.error(e)
+            sys.exit(1)
 
-    cb.read_config()
-    cb.dump_config()
+        cb.read_config()
+        cb.dump_config()
 
-    ctx.obj = cb
+        ctx.obj = cb
 
 
 @click.command()
-@click.pass_obj
-def version(cb):
+def version():
     """Displays own version and all dependencies"""
     logger.error(f"CloudBender: {__version__}")
 
