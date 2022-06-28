@@ -10,7 +10,7 @@ authors = [
 ]
 description = "Toolset to render and manage AWS Cloudformation"
 readme = "README.md"
-license = { file="LICENSE.md" }
+license = "AGPL-3.0-or-later"
 requires-python = ">=3.7"
 dependencies = [
         "boto3",
