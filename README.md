@@ -1,4 +1,4 @@
-# ![Logo](cloudbender.png) CloudBender
+# ![Logo](https://git.zero-downtime.net/ZeroDownTime/CloudBender/media/branch/master/cloudbender.png) CloudBender
 
 # About
 
@@ -13,15 +13,15 @@ First class support for:
 `$ pip install cloudbender`
 
 # State management
-## Cloudformation
-All state is handled by AWS Cloudformation.  
-The required account and region are determined by CloudBender automatically from the configuration.
-
 ## Pulumi
 The state for all Pulumi resources are stored on S3 in your account and in the same region as the resources being deployed.
 No data is send to nor shared with the official Pulumi provided APIs.
 
 CloudBender configures Pulumi with a local, temporary workspace on the fly. This incl. the injection of various common parameters like the AWS account ID and region etc.  
+
+## Cloudformation
+All state is handled by AWS Cloudformation.  
+The required account and region are determined by CloudBender automatically from the configuration.
 
 
 # CLI

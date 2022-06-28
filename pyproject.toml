@@ -8,10 +8,10 @@ dynamic = ["version"]
 authors = [
   { name="Stefan Reimer", email="stefan@zero-downtime.net" },
 ]
-description = "Toolset to render and manage AWS Cloudformation"
+description = "Deploy and maintain infrastructure in automated and trackable manner"
 readme = "README.md"
 license = "AGPL-3.0-or-later"
-requires-python = ">=3.7"
+requires-python = ">=3.8"
 dependencies = [
         "boto3",
         "mock",
