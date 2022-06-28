@@ -36,10 +36,13 @@ Options:
   --help      Show this message and exit.
 
 Commands:
+  assimilate         Imports potentially existing resources into Pulumi...
   clean              Deletes all previously rendered files locally
   create-change-set  Creates a change set for an existing stack - CFN only
   create-docs        Parses all documentation fragments out of rendered...
   delete             Deletes stacks or stack groups
+  execute            Executes custom Python function within an existing...
+  export             Exports a Pulumi stack to repair state
   get-config         Get a config value, decrypted if secret
   outputs            Prints all stack outputs
   preview            Preview of Pulumi stack up operation
