@@ -4,27 +4,49 @@
 
 Toolset to deploy and maintain infrastructure in automated and trackable manner.  
 First class support for:  
-- [AWS CloudFormation](https://aws.amazon.com/cloudformation)
 - [Pulumi](https://www.pulumi.com/docs/)
+- [AWS CloudFormation](https://aws.amazon.com/cloudformation)
 
 
 # Install
 
-`$ pip install cloudbender`
+## Container
+This most likely only works on a recent Linux box/VM, which is capable of running rootless containers within containers.
+Requires kernel >= 5.10, cgroupsV2 support, podman, ...
 
-# State management
-## Pulumi
+```
+podman run -it --rm -v .:/workspace -v $HOME/.aws/config:/workspace/.aws/config public.ecr.aws/zero-downtime/cloudbender:latest cloudbender version
+```
+
+## Local install
+1. ```pip install cloudbender```
+2. ```curl -fsSL https://get.pulumi.com | sh```, see official [Docs](https://www.pulumi.com/docs/get-started/install/)
+3. Ensure you either have `docker` or `podman` in your PATH.
+
+To verify that all pieces are in place run:  
+```
+cloudbender version
+```
+which should get you something like:
+```
+[2022-06-28 16:06:24] CloudBender: 0.13.4
+[2022-06-28 16:06:24] Pulumi: v3.34.1
+[2022-06-28 16:06:24] Podman/Docker: podman version 4.1.0
+```
+
+## State management
+### Pulumi
 The state for all Pulumi resources are stored on S3 in your account and in the same region as the resources being deployed.
 No data is send to nor shared with the official Pulumi provided APIs.
 
 CloudBender configures Pulumi with a local, temporary workspace on the fly. This incl. the injection of various common parameters like the AWS account ID and region etc.  
 
-## Cloudformation
+### Cloudformation
 All state is handled by AWS Cloudformation.  
 The required account and region are determined by CloudBender automatically from the configuration.
 
 
-# CLI
+## CLI
 
 ```
 Usage: cloudbender [OPTIONS] COMMAND [ARGS]...
@@ -57,9 +79,6 @@ Commands:
 ## Config management
 - Within the config folder each directory represents either a stack group if it has sub-directories, or an actual Cloudformation stack in case it is a leaf folder.
 - The actual configuration for each stack is hierachly merged. Lower level config files overwrite higher-level values. Complex data structures like dictionaries and arrays are deep merged.
-
-## Quickstart
-TBD
 
 ## Secrets handling
 
