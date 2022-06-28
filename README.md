@@ -30,7 +30,6 @@ The required account and region are determined by CloudBender automatically from
 Usage: cloudbender [OPTIONS] COMMAND [ARGS]...
 
 Options:
-  --version   Show the version and exit.
   --debug     Turn on debug logging.
   --dir TEXT  Specify cloudbender project directory.
   --help      Show this message and exit.
@@ -52,6 +51,7 @@ Commands:
   set-config         Sets a config value, encrypts with stack key if secret
   sync               Renders template and provisions it right away
   validate           Validates already rendered templates using cfn-lint...
+  version            Displays own version and all dependencies
 ```
 
 ## Config management
