@@ -54,7 +54,6 @@ def version():
     logger.error(f"CloudBender: {__version__}")
 
     # Pulumi
-    # import pdb;pdb.set_trace()
     pulumi_version = get_pulumi_version()
     if not pulumi_version:
         logger.error(
@@ -63,7 +62,7 @@ def version():
     else:
         logger.error(f"Pulumi: {pulumi_version}")
 
-    # Docker / podman
+    # Docker / podman version
     docker_version = get_docker_version()
     if not docker_version:
         logger.error("Podman/Docker: Cannot call podman nor docker")
