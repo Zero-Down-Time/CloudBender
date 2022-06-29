@@ -7,6 +7,7 @@ import time
 import pathlib
 import pprint
 import pulumi
+import importlib
 import pkg_resources
 
 from datetime import datetime, timedelta
