@@ -10,18 +10,19 @@ First class support for:
 
 # Install
 
-## Container
-This most likely only works on a recent Linux box/VM, which is capable of running rootless containers within containers.
-Requires kernel >= 5.10, cgroupsV2 support, podman, ...
+## Containerized
+The command below tests the ability to run containers within containers on your local setup.  
+( This most likely only works on a recent Linux box/VM, which is capable of running rootless containers within containers.
+Requires kernel >= 5.12, Cgroups V2, podman, ... )
 
 ```
-podman run -it --rm -v .:/workspace -v $HOME/.aws/config:/workspace/.aws/config public.ecr.aws/zero-downtime/cloudbender:latest cloudbender version
+podman run --rm -v .:/workspace -v $HOME/.aws/config:/workspace/.aws/config public.ecr.aws/zero-downtime/cloudbender:latest podman run -q --rm docker.io/busybox:latest echo "Rootless container inception works!"
 ```
 
 ## Local install
-1. ```pip install cloudbender```
-2. ```curl -fsSL https://get.pulumi.com | sh```, see official [Docs](https://www.pulumi.com/docs/get-started/install/)
-3. Ensure you either have `docker` or `podman` in your PATH.
+1. ```pip3 install cloudbender```
+2. ```curl -fsSL https://get.pulumi.com | sh```  (official [Docs](https://www.pulumi.com/docs/get-started/install/))
+3. install either `podman` or `docker` depending on your platform
 
 To verify that all pieces are in place run:  
 ```
@@ -29,22 +30,10 @@ cloudbender version
 ```
 which should get you something like:
 ```
-[2022-06-28 16:06:24] CloudBender: 0.13.4
+[2022-06-28 16:06:24] CloudBender: 0.13.5
 [2022-06-28 16:06:24] Pulumi: v3.34.1
 [2022-06-28 16:06:24] Podman/Docker: podman version 4.1.0
 ```
-
-## State management
-### Pulumi
-The state for all Pulumi resources are stored on S3 in your account and in the same region as the resources being deployed.
-No data is send to nor shared with the official Pulumi provided APIs.
-
-CloudBender configures Pulumi with a local, temporary workspace on the fly. This incl. the injection of various common parameters like the AWS account ID and region etc.  
-
-### Cloudformation
-All state is handled by AWS Cloudformation.  
-The required account and region are determined by CloudBender automatically from the configuration.
-
 
 ## CLI
 
@@ -76,20 +65,32 @@ Commands:
   version            Displays own version and all dependencies
 ```
 
+# Architecture
+## State management
+### Pulumi
+The state for all Pulumi resources are stored on S3 in your account and in the same region as the resources being deployed.
+No data is send to nor shared with the official Pulumi provided APIs.
+
+CloudBender configures Pulumi with a local, temporary workspace on the fly. This incl. the injection of various common parameters like the AWS account ID and region etc.  
+
+### Cloudformation
+All state is handled by AWS Cloudformation.  
+The required account and region are determined by CloudBender automatically from the configuration.
+
+
 ## Config management
 - Within the config folder each directory represents either a stack group if it has sub-directories, or an actual Cloudformation stack in case it is a leaf folder.
 - The actual configuration for each stack is hierachly merged. Lower level config files overwrite higher-level values. Complex data structures like dictionaries and arrays are deep merged.
 
-## Secrets handling
+## Secrets
 
 ### Pulumi
 CloudBender supports the native Pulumi secret handling.
 See [Pulumi Docs](https://www.pulumi.com/docs/intro/concepts/secrets/) for details.
 
 ### Cloudformation
-CloudBender supports [SOPS](https://github.com/mozilla/sops) to encrypt values in any config yaml file since version 0.8.1  
+CloudBender supports [SOPS](https://github.com/mozilla/sops) to encrypt values in any config file.
 
-If a sops encrypted config file is detected CloudBender will automatically try to decrypt the file during execution.  
-All required information to decrypt has to be present in the embedded sops config or set ahead of time via sops supported ENVIRONMENT variables.
+If a sops encrypted config file is detected by CloudBender, it will automatically try to decrypt the file. All required information to decrypt has to be present in the embedded sops config or set ahead of time via sops supported ENVIRONMENT variables.
 
 SOPS support can be disabled by setting `DISABLE_SOPS` in order to reduce timeouts etc.

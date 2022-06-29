@@ -7,7 +7,7 @@ import time
 import pathlib
 import pprint
 import pulumi
-import importlib.resources as pkg_resources
+import pkg_resources
 
 from datetime import datetime, timedelta
 from dateutil.tz import tzutc
@@ -519,7 +519,7 @@ class Stack(object):
         if self.outputs:
             if self.store_outputs:
                 filename = self.stackname + ".yaml"
-                my_template = pkg_resources.read_text(templates, "outputs.yaml")
+                my_template = importlib.resources.read_text(templates, "outputs.yaml")
 
                 output_file = os.path.join(
                     self.ctx["outputs_path"], self.rel_path, filename
@@ -576,7 +576,7 @@ class Stack(object):
             return
 
         if not template:
-            doc_template = pkg_resources.read_text(templates, "stack-doc.md")
+            doc_template = importlib.resources.read_text(templates, "stack-doc.md")
             jenv = JinjaEnv()
             template = jenv.from_string(doc_template)
             data = {}
