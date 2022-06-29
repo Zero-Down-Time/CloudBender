@@ -8,9 +8,10 @@ First class support for:
 - [AWS CloudFormation](https://aws.amazon.com/cloudformation)
 
 
-# Install
+# Installation
 
-## Containerized
+## 1a. Containerized
+
 The command below tests the ability to run containers within containers on your local setup.  
 ( This most likely only works on a recent Linux box/VM, which is capable of running rootless containers within containers.
 Requires kernel >= 5.12, Cgroups V2, podman, ... )
@@ -19,11 +20,19 @@ Requires kernel >= 5.12, Cgroups V2, podman, ... )
 podman run --rm -v .:/workspace -v $HOME/.aws/config:/workspace/.aws/config public.ecr.aws/zero-downtime/cloudbender:latest podman run -q --rm docker.io/busybox:latest echo "Rootless container inception works!"
 ```
 
-## Local install
-1. ```pip3 install cloudbender```
-2. ```curl -fsSL https://get.pulumi.com | sh```  (official [Docs](https://www.pulumi.com/docs/get-started/install/))
-3. install either `podman` or `docker` depending on your platform
+if you get `Rootless container inception works!`, add an alias to your environment, eg:
 
+```
+alias cloudbender="podman run --rm -v .:/workspace -v $HOME/.aws/config:/home/cloudbender/.aws/config public.ecr.aws/zero-downtime/cloudbender:latest cloudbender"
+```
+and proceed with step 2)
+
+## 1b. Local install
+- `pip3 install -U cloudbender`
+- `curl -fsSL https://get.pulumi.com | sh`  (official [Docs](https://www.pulumi.com/docs/get-started/install/))
+- either `podman` or `docker` depending on your platform
+
+## 2. Test cli
 To verify that all pieces are in place run:  
 ```
 cloudbender version
