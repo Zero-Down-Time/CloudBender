@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 class CloudBender(object):
     """Config Class to handle recursive conf/* config tree"""
 
-    def __init__(self, root_path):
+    def __init__(self, root_path, profile):
         self.root = pathlib.Path(root_path)
         self.sg = None
         self.all_stacks = []
@@ -22,7 +22,11 @@ class CloudBender(object):
             "docs_path": self.root.joinpath("docs"),
             "outputs_path": self.root.joinpath("outputs"),
             "artifact_paths": [self.root.joinpath("artifacts")],
+            "profile": profile,
         }
+
+        if profile:
+            logger.info("Profile overwrite: using {}".format(self.ctx["profile"]))
 
         if not self.ctx["config_path"].is_dir():
             raise InvalidProjectDir(

@@ -9,6 +9,9 @@ First class support for:
 
 
 # Installation
+The preferred way of running CloudBender is using the public container. This ensure all tools and dependencies are in sync and underwent some basic testing during the development and build phase.  
+
+As a fall back CloudBender and its dependencies can be installed locally see step *1b* below.
 
 ## 1a. Containerized
 
@@ -50,9 +53,10 @@ which should get you something like:
 Usage: cloudbender [OPTIONS] COMMAND [ARGS]...
 
 Options:
-  --debug     Turn on debug logging.
-  --dir TEXT  Specify cloudbender project directory.
-  --help      Show this message and exit.
+  --profile TEXT  Use named AWS .config profile, overwrites any stack config
+  --dir TEXT      Specify cloudbender project directory.
+  --debug         Turn on debug logging.
+  --help          Show this message and exit.
 
 Commands:
   assimilate         Imports potentially existing resources into Pulumi...
