@@ -18,10 +18,15 @@ logger = logging.getLogger(__name__)
 
 
 @click.group()
-@click.option("--debug", is_flag=True, help="Turn on debug logging.")
+@click.option(
+    "--profile",
+    "profile",
+    help="Use named AWS .config profile, overwrites any stack config",
+)
 @click.option("--dir", "directory", help="Specify cloudbender project directory.")
+@click.option("--debug", is_flag=True, help="Turn on debug logging.")
 @click.pass_context
-def cli(ctx, debug, directory):
+def cli(ctx, profile, debug, directory):
     setup_logging(debug)
 
     # Skip parsing all the things if we just want the versions
@@ -37,7 +42,7 @@ def cli(ctx, debug, directory):
 
         # Read global config
         try:
-            cb = CloudBender(directory)
+            cb = CloudBender(directory, profile)
         except InvalidProjectDir as e:
             logger.error(e)
             sys.exit(1)

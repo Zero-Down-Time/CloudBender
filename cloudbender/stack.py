@@ -56,7 +56,7 @@ class Stack(object):
         self.outputs = {}
         self.options = {}
         self.region = "global"
-        self.profile = "default"
+        self.profile = None
         self.onfailure = "DELETE"
         self.notfication_sns = []
 
@@ -103,9 +103,18 @@ class Stack(object):
         self.pulumi.update(sg_config.get("pulumi", {}))
 
         # by default inherit parent group settings
-        for p in ["region", "profile", "notfication_sns", "template_bucket_url"]:
+        for p in ["region", "notfication_sns", "template_bucket_url"]:
             if p in sg_config:
                 setattr(self, p, sg_config[p])
+
+        # profile needs special treatment due to cmd line overwrite option
+        if self.ctx["profile"]:
+            self.profile = self.ctx["profile"]
+        else:
+            if "profile" in sg_config:
+                self.profile = sg_config["profile"]
+            else:
+                self.profile = "default"
 
         # now override stack specific settings
         _config = read_config_file(self.path, sg_config.get("variables", {}))
