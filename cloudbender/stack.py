@@ -574,83 +574,110 @@ class Stack(object):
                 )
             )
 
-    def create_docs(self, template=False, graph=False):
+    @pulumi_ws
+    def docs(self, template=False, graph=False):
         """Read rendered template, parse documentation fragments, eg. parameter description
-        and create a mardown doc file for the stack
-        same idea as eg. helm-docs for values.yaml
+        and create a mardown doc file for the stack. Same idea as helm-docs for the values.yaml
         """
 
-        try:
-            self.read_template_file()
-        except FileNotFoundError:
-            return
+        if self.mode == "pulumi":
+            if vars(self._pulumi_code)["__doc__"]:
+                print(vars(self._pulumi_code)["__doc__"])
+            else:
+                print("No template documentation found.")
 
-        if not template:
-            doc_template = importlib.resources.read_text(templates, "stack-doc.md")
-            jenv = JinjaEnv()
-            template = jenv.from_string(doc_template)
-            data = {}
+            # collect all __doc__ from available _execute_ functions
+            _help = ""
+            for k in vars(self._pulumi_code).keys():
+                if k.startswith("_execute_"):
+                    docstring = vars(self._pulumi_code)[k].__doc__
+                    _help = _help + "## {}\n{}\n".format(
+                        k.lstrip("_execute_"), docstring
+                    )
+
+            if _help:
+                print(f"# Available `execute` functions:  \n\n{_help}")
+
         else:
-            doc_template = template
-
-        data["name"] = self.stackname
-        data["description"] = self.cfn_data["Description"]
-        data["dependencies"] = self.dependencies
-
-        if "Parameters" in self.cfn_data:
-            data["parameters"] = self.cfn_data["Parameters"]
-            set_parameters = self.resolve_parameters()
-            for p in set_parameters:
-                data["parameters"][p]["value"] = set_parameters[p]
-
-        if "Outputs" in self.cfn_data:
-            data["outputs"] = self.cfn_data["Outputs"]
-
-            # Check for existing outputs yaml, if found add current value column and set header to timestamp from outputs file
-            output_file = os.path.join(
-                self.ctx["outputs_path"], self.rel_path, self.stackname + ".yaml"
-            )
-
             try:
-                with open(output_file, "r") as yaml_contents:
-                    outputs = yaml.safe_load(yaml_contents.read())
-                    for p in outputs["Outputs"]:
-                        data["outputs"][p]["last_value"] = outputs["Outputs"][p]
-                    data["timestamp"] = outputs["TimeStamp"]
-            except (FileNotFoundError, KeyError, TypeError):
-                pass
+                self.read_template_file()
+            except FileNotFoundError:
+                return
 
-        doc_file = os.path.join(
-            self.ctx["docs_path"], self.rel_path, self.stackname + ".md"
-        )
-        ensure_dir(os.path.join(self.ctx["docs_path"], self.rel_path))
+            if not template:
+                doc_template = importlib.resources.read_text(templates, "stack-doc.md")
+                jenv = JinjaEnv()
+                template = jenv.from_string(doc_template)
+                data = {}
+            else:
+                doc_template = template
 
-        with open(doc_file, "w") as doc_contents:
-            doc_contents.write(template.render(**data))
-            logger.info("Wrote documentation for %s to %s", self.stackname, doc_file)
+            data["name"] = self.stackname
+            data["description"] = self.cfn_data["Description"]
+            data["dependencies"] = self.dependencies
 
-        # Write Graph in Dot format
-        if graph:
-            filename = os.path.join(
-                self.ctx["template_path"], self.rel_path, self.stackname + ".yaml"
-            )
+            if "Parameters" in self.cfn_data:
+                data["parameters"] = self.cfn_data["Parameters"]
+                set_parameters = self.resolve_parameters()
+                for p in set_parameters:
+                    data["parameters"][p]["value"] = set_parameters[p]
 
-            lint_args = ["--template", filename]
-            (args, filenames, formatter) = cfnlint.core.get_args_filenames(lint_args)
-            (template, rules, matches) = cfnlint.core.get_template_rules(filename, args)
-            template_obj = cfnlint.template.Template(filename, template, [self.region])
+            if "Outputs" in self.cfn_data:
+                data["outputs"] = self.cfn_data["Outputs"]
 
-            path = os.path.join(
-                self.ctx["docs_path"], self.rel_path, self.stackname + ".dot"
-            )
-            g = cfnlint.graph.Graph(template_obj)
-            try:
-                g.to_dot(path)
-                logger.info("DOT representation of the graph written to %s", path)
-            except ImportError:
-                logger.error(
-                    "Could not write the graph in DOT format. Please install either `pygraphviz` or `pydot` modules."
+                # Check for existing outputs yaml, if found add current value column and set header to timestamp from outputs file
+                output_file = os.path.join(
+                    self.ctx["outputs_path"], self.rel_path, self.stackname + ".yaml"
                 )
+
+                try:
+                    with open(output_file, "r") as yaml_contents:
+                        outputs = yaml.safe_load(yaml_contents.read())
+                        for p in outputs["Outputs"]:
+                            data["outputs"][p]["last_value"] = outputs["Outputs"][p]
+                        data["timestamp"] = outputs["TimeStamp"]
+                except (FileNotFoundError, KeyError, TypeError):
+                    pass
+
+            doc_file = os.path.join(
+                self.ctx["docs_path"], self.rel_path, self.stackname + ".md"
+            )
+            ensure_dir(os.path.join(self.ctx["docs_path"], self.rel_path))
+
+            with open(doc_file, "w") as doc_contents:
+                doc_contents.write(template.render(**data))
+                logger.info(
+                    "Wrote documentation for %s to %s", self.stackname, doc_file
+                )
+
+            # Write Graph in Dot format
+            if graph:
+                filename = os.path.join(
+                    self.ctx["template_path"], self.rel_path, self.stackname + ".yaml"
+                )
+
+                lint_args = ["--template", filename]
+                (args, filenames, formatter) = cfnlint.core.get_args_filenames(
+                    lint_args
+                )
+                (template, rules, matches) = cfnlint.core.get_template_rules(
+                    filename, args
+                )
+                template_obj = cfnlint.template.Template(
+                    filename, template, [self.region]
+                )
+
+                path = os.path.join(
+                    self.ctx["docs_path"], self.rel_path, self.stackname + ".dot"
+                )
+                g = cfnlint.graph.Graph(template_obj)
+                try:
+                    g.to_dot(path)
+                    logger.info("DOT representation of the graph written to %s", path)
+                except ImportError:
+                    logger.error(
+                        "Could not write the graph in DOT format. Please install either `pygraphviz` or `pydot` modules."
+                    )
 
     def resolve_parameters(self):
         """Renders parameters for the stack based on the source template and the environment configuration"""
@@ -867,35 +894,29 @@ class Stack(object):
         return
 
     @pulumi_ws
-    def execute(self, function, args, listall=False):
-        """Executes custom Python function within a Pulumi stack"""
+    def execute(self, function, args):
+        """
+        Executes custom Python function within a Pulumi stack
 
-        # call all available functions and output built in help
-        if listall:
-            for k in vars(self._pulumi_code).keys():
-                if k.startswith("_execute_"):
-                    docstring = vars(self._pulumi_code)[k](docstring=True)
-                    print("{}: {}".format(k.lstrip("_execute_"), docstring))
+        These functions are executed within the stack environment and are provided with all stack input parameters as well as current outputs.
+        Think of "docker exec" into an existing container...
+
+        """
+        if not function:
+            logger.error("No function specified !")
             return
 
+        exec_function = f"_execute_{function}"
+        if exec_function in vars(self._pulumi_code):
+            pulumi_stack = self._get_pulumi_stack()
+            vars(self._pulumi_code)[exec_function](
+                config=pulumi_stack.get_all_config(),
+                outputs=pulumi_stack.outputs(),
+                args=args,
+            )
+
         else:
-            if not function:
-                logger.error("No function specified !")
-                return
-
-            exec_function = f"_execute_{function}"
-            if exec_function in vars(self._pulumi_code):
-                pulumi_stack = self._get_pulumi_stack()
-                vars(self._pulumi_code)[exec_function](
-                    config=pulumi_stack.get_all_config(),
-                    outputs=pulumi_stack.outputs(),
-                    args=args,
-                )
-
-            else:
-                logger.error(
-                    "{} is not defined in {}".format(function, self._pulumi_code)
-                )
+            logger.error("{} is not defined in {}".format(function, self._pulumi_code))
 
     @pulumi_ws
     def assimilate(self):

@@ -26,11 +26,11 @@ clean:
 pybuild:
 	hatchling build
 
-test_upload: $(PACKAGE_FILE)
-	twine upload --repository-url https://test.pypi.org/legacy/ dist/cloudbender-*.whl
+test_upload: pybuild
+	twine upload --repository-url https://test.pypi.org/legacy/ --non-interactive dist/cloudbender-*.whl
 
-upload: $(PACKAGE_FILE)
-	twine upload --repository-url https://upload.pypi.org/legacy/ dist/cloudbender-*.whl
+upload: pybuild
+	twine upload -r pypi --non-interactive  dist/cloudbender-*.whl
 
 build:
 	podman build --rm -t $(REPOSITORY):$(TAG) -t $(REPOSITORY):latest .

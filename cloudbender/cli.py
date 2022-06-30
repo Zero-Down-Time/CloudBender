@@ -145,12 +145,12 @@ def outputs(cb, stack_names, multi, include, values):
 @click.option("--multi", is_flag=True, help="Allow more than one stack to match")
 @click.option("--graph", is_flag=True, help="Create Dot Graph file")
 @click.pass_obj
-def create_docs(cb, stack_names, multi, graph):
-    """Parses all documentation fragments out of rendered templates creating docs/*.md file"""
+def docs(cb, stack_names, multi, graph):
+    """Outputs docs for stack(s). For Pulumi stacks prints out docstring. For CloudFormation templates render a markdown file. Same idea as helm-docs."""
 
     stacks = _find_stacks(cb, stack_names, multi)
     for s in stacks:
-        s.create_docs(graph=graph)
+        s.docs(graph=graph)
 
 
 @click.command()
@@ -183,19 +183,14 @@ def refresh(cb, stack_name):
 @click.argument("stack_name")
 @click.argument("function", default="")
 @click.argument("args", nargs=-1)
-@click.option(
-    "--listall",
-    is_flag=True,
-    help="List all available execute functions for this stack",
-)
 @click.pass_obj
-def execute(cb, stack_name, function, args, listall=False):
+def execute(cb, stack_name, function, args):
     """Executes custom Python function within an existing stack context"""
     stacks = _find_stacks(cb, [stack_name])
 
     for s in stacks:
         if s.mode == "pulumi":
-            s.execute(function, args, listall)
+            s.execute(function, args)
         else:
             logger.info(
                 "{} uses Cloudformation, no exec feature available.".format(s.stackname)
@@ -455,7 +450,7 @@ cli.add_command(delete)
 cli.add_command(clean)
 cli.add_command(create_change_set)
 cli.add_command(outputs)
-cli.add_command(create_docs)
+cli.add_command(docs)
 cli.add_command(refresh)
 cli.add_command(preview)
 cli.add_command(set_config)
