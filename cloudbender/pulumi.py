@@ -31,6 +31,20 @@ def get_pulumi_version():
         return None
 
 
+def resolve_outputs(outputs):
+    my_outputs = {}
+
+    for k,v in outputs.items():
+        if type(v) == pulumi.automation._output.OutputValue:
+            if v.secret:
+                my_outputs[k] = "***"
+            else:
+                my_outputs[k] = v.value
+        else:
+            my_outputs[k] = v
+
+    return my_outputs
+
 def pulumi_ws(func):
     @wraps(func)
     def decorated(self, *args, **kwargs):
