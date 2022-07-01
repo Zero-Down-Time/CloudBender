@@ -200,6 +200,12 @@ def JinjaEnv(template_locations=[]):
     return jenv
 
 
+def render_docs(docs, outputs):
+    jenv = jinja2.Environment(undefined=jinja2.ChainableUndefined)
+
+    return jenv.from_string(docs).render(outputs)
+
+
 def read_config_file(path, variables={}):
     """reads yaml config file, passes it through jinja and returns data structre
 

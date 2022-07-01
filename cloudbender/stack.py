@@ -17,11 +17,11 @@ from botocore.exceptions import ClientError
 
 from .utils import dict_merge, search_refs, ensure_dir, get_s3_url
 from .connection import BotoConnection
-from .jinja import JinjaEnv, read_config_file
+from .jinja import JinjaEnv, read_config_file, render_docs
 from . import __version__
 from .exceptions import ParameterNotFound, ParameterIllegalValue, ChecksumError
 from .hooks import exec_hooks
-from .pulumi import pulumi_ws
+from .pulumi import pulumi_ws, resolve_outputs
 
 import cfnlint.core
 import cfnlint.template
@@ -581,22 +581,31 @@ class Stack(object):
         """
 
         if self.mode == "pulumi":
+            try:
+                pulumi_stack = self._get_pulumi_stack()
+                outputs=pulumi_stack.outputs()
+            except pulumi.automation.errors.StackNotFoundError:
+                outputs = {}
+                pass
+
             if vars(self._pulumi_code)["__doc__"]:
-                print(vars(self._pulumi_code)["__doc__"])
+                output= render_docs(vars(self._pulumi_code)["__doc__"], resolve_outputs(outputs))
             else:
-                print("No template documentation found.")
+                output = "No template documentation found."
 
             # collect all __doc__ from available _execute_ functions
-            _help = ""
+            headerAdded = False
             for k in vars(self._pulumi_code).keys():
                 if k.startswith("_execute_"):
+                    if not headerAdded:
+                        output = output + "\n# Available `execute` functions:  \n"
+                        headerAdded = True
                     docstring = vars(self._pulumi_code)[k].__doc__
-                    _help = _help + "## {}\n{}\n".format(
+                    output = output + "\n* {}\n{}".format(
                         k.lstrip("_execute_"), docstring
                     )
 
-            if _help:
-                print(f"# Available `execute` functions:  \n\n{_help}")
+            print(output)
 
         else:
             try:
