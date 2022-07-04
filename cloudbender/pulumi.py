@@ -34,7 +34,7 @@ def get_pulumi_version():
 def resolve_outputs(outputs):
     my_outputs = {}
 
-    for k,v in outputs.items():
+    for k, v in outputs.items():
         if type(v) == pulumi.automation._output.OutputValue:
             if v.secret:
                 my_outputs[k] = "***"
@@ -44,6 +44,7 @@ def resolve_outputs(outputs):
             my_outputs[k] = v
 
     return my_outputs
+
 
 def pulumi_ws(func):
     @wraps(func)
@@ -114,28 +115,7 @@ def pulumi_ws(func):
 
             # Ugly hack as Pulumi currently doesnt support MFA_TOKENs during role assumptions
             # Do NOT set them via 'aws:secretKey' as they end up in the self.json in plain text !!!
-            if (
-                self.connection_manager._sessions[(self.profile, self.region)]
-                .get_credentials()
-                .token
-            ):
-                os.environ["AWS_SESSION_TOKEN"] = (
-                    self.connection_manager._sessions[(self.profile, self.region)]
-                    .get_credentials()
-                    .token
-                )
-
-            os.environ["AWS_ACCESS_KEY_ID"] = (
-                self.connection_manager._sessions[(self.profile, self.region)]
-                .get_credentials()
-                .access_key
-            )
-            os.environ["AWS_SECRET_ACCESS_KEY"] = (
-                self.connection_manager._sessions[(self.profile, self.region)]
-                .get_credentials()
-                .secret_key
-            )
-            os.environ["AWS_DEFAULT_REGION"] = self.region
+            self.connection_manager.exportProfileEnv()
 
             # Secrets provider
             if "secretsProvider" in self.pulumi:

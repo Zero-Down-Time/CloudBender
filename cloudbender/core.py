@@ -1,7 +1,10 @@
+import os
 import pathlib
 import logging
+import pexpect
 
 from .stackgroup import StackGroup
+from .connection import BotoConnection
 from .jinja import read_config_file
 from .exceptions import InvalidProjectDir
 
@@ -11,7 +14,7 @@ logger = logging.getLogger(__name__)
 class CloudBender(object):
     """Config Class to handle recursive conf/* config tree"""
 
-    def __init__(self, root_path, profile):
+    def __init__(self, root_path, profile, region):
         self.root = pathlib.Path(root_path)
         self.sg = None
         self.all_stacks = []
@@ -23,10 +26,14 @@ class CloudBender(object):
             "outputs_path": self.root.joinpath("outputs"),
             "artifact_paths": [self.root.joinpath("artifacts")],
             "profile": profile,
+            "region": region,
         }
 
         if profile:
             logger.info("Profile overwrite: using {}".format(self.ctx["profile"]))
+
+        if region:
+            logger.info("Region overwrite: using {}".format(self.ctx["region"]))
 
         if not self.ctx["config_path"].is_dir():
             raise InvalidProjectDir(
@@ -35,7 +42,7 @@ class CloudBender(object):
                 )
             )
 
-    def read_config(self):
+    def read_config(self, loadStacks=True):
         """Load the <path>/config.yaml, <path>/*.yaml as stacks, sub-folders are sub-groups"""
 
         # Read top level config.yaml and extract CloudBender CTX
@@ -73,7 +80,7 @@ class CloudBender(object):
                         self.ctx[k] = self.root.joinpath(v)
 
         self.sg = StackGroup(self.ctx["config_path"], self.ctx)
-        self.sg.read_config()
+        self.sg.read_config(loadStacks=loadStacks)
 
         self.all_stacks = self.sg.get_stacks()
 
@@ -127,3 +134,17 @@ class CloudBender(object):
                 matching_stacks.append(s)
 
         return matching_stacks
+
+    def wrap(self, stack_group, cmd):
+        """
+        Set AWS environment based on profile before executing a custom command, eg. steampipe
+        """
+
+        profile = stack_group.config.get("profile", "default")
+        region = stack_group.config.get("region", "global")
+
+        connection_manager = BotoConnection(profile, region)
+        connection_manager.exportProfileEnv()
+
+        child = pexpect.spawn(cmd)
+        child.interact()
