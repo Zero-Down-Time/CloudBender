@@ -23,34 +23,46 @@ logger = logging.getLogger(__name__)
     "profile",
     help="Use named AWS .config profile, overwrites any stack config",
 )
+@click.option(
+    "--region",
+    "region",
+    help="Use region, overwrites any stack config",
+)
 @click.option("--dir", "directory", help="Specify cloudbender project directory.")
 @click.option("--debug", is_flag=True, help="Turn on debug logging.")
 @click.pass_context
-def cli(ctx, profile, debug, directory):
+def cli(ctx, profile, region, debug, directory):
     setup_logging(debug)
 
     # Skip parsing all the things if we just want the versions
-    if ctx.invoked_subcommand != "version":
-        # Make sure our root is abs
-        if directory:
-            if not os.path.isabs(directory):
-                directory = os.path.normpath(os.path.join(os.getcwd(), directory))
-        elif os.getenv("CLOUDBENDER_PROJECT_ROOT"):
-            directory = os.getenv("CLOUDBENDER_PROJECT_ROOT")
-        else:
-            directory = os.getcwd()
+    if ctx.invoked_subcommand == "version":
+        return
 
-        # Read global config
-        try:
-            cb = CloudBender(directory, profile)
-        except InvalidProjectDir as e:
-            logger.error(e)
-            sys.exit(1)
+    # Make sure our root is abs
+    if directory:
+        if not os.path.isabs(directory):
+            directory = os.path.normpath(os.path.join(os.getcwd(), directory))
+    elif os.getenv("CLOUDBENDER_PROJECT_ROOT"):
+        directory = os.getenv("CLOUDBENDER_PROJECT_ROOT")
+    else:
+        directory = os.getcwd()
 
+    # Read global config
+    try:
+        cb = CloudBender(directory, profile, region)
+    except InvalidProjectDir as e:
+        logger.error(e)
+        sys.exit(1)
+
+    # Only load stackgroups to get profile and region
+    if ctx.invoked_subcommand == "wrap":
+        cb.read_config(loadStacks=False)
+    else:
         cb.read_config()
-        cb.dump_config()
 
-        ctx.obj = cb
+    cb.dump_config()
+
+    ctx.obj = cb
 
 
 @click.command()
@@ -193,7 +205,9 @@ def execute(cb, stack_name, function, args):
             s.execute(function, args)
         else:
             logger.info(
-                "{} uses Cloudformation, no exec feature available.".format(s.stackname)
+                "{} uses Cloudformation, no execute feature available.".format(
+                    s.stackname
+                )
             )
 
 
@@ -309,6 +323,17 @@ def delete(cb, stack_names, multi):
 
                 for future in as_completed(futures):
                     future.result()
+
+
+@click.command()
+@click.argument("stack_group", nargs=1, required=True)
+@click.argument("cmd", nargs=-1, required=True)
+@click.pass_obj
+def wrap(cb, stack_group, cmd):
+    """Execute custom external program"""
+
+    sg = cb.sg.get_stackgroup(stack_group)
+    cb.wrap(sg, " ".join(cmd))
 
 
 @click.command()
@@ -458,6 +483,7 @@ cli.add_command(get_config)
 cli.add_command(export)
 cli.add_command(assimilate)
 cli.add_command(execute)
+cli.add_command(wrap)
 
 if __name__ == "__main__":
     cli(obj={})

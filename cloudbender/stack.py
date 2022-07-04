@@ -60,7 +60,6 @@ class Stack(object):
         self.onfailure = "DELETE"
         self.notfication_sns = []
 
-        self.id = (self.profile, self.region, self.stackname)
         self.aws_stackid = None
 
         self.md5 = None
@@ -69,7 +68,7 @@ class Stack(object):
         self.cfn_template = None
         self.cfn_parameters = []
         self.cfn_data = None
-        self.connection_manager = BotoConnection(self.profile, self.region)
+        self.connection_manager = None
         self.status = None
         self.store_outputs = False
         self.dependencies = set()
@@ -107,7 +106,10 @@ class Stack(object):
             if p in sg_config:
                 setattr(self, p, sg_config[p])
 
-        # profile needs special treatment due to cmd line overwrite option
+        # profile and region need special treatment due to cmd line overwrite option
+        if self.ctx["region"]:
+            self.region = self.ctx["region"]
+
         if self.ctx["profile"]:
             self.profile = self.ctx["profile"]
         else:
@@ -158,6 +160,9 @@ class Stack(object):
             raise ParameterIllegalValue(
                 "onfailure must be one of DO_NOTHING | ROLLBACK | DELETE"
             )
+
+        self.id = (self.profile, self.region, self.stackname)
+        self.connection_manager = BotoConnection(self.profile, self.region)
 
         logger.debug("Stack {} added.".format(self.id))
 
@@ -583,13 +588,15 @@ class Stack(object):
         if self.mode == "pulumi":
             try:
                 pulumi_stack = self._get_pulumi_stack()
-                outputs=pulumi_stack.outputs()
+                outputs = pulumi_stack.outputs()
             except pulumi.automation.errors.StackNotFoundError:
                 outputs = {}
                 pass
 
             if vars(self._pulumi_code)["__doc__"]:
-                output= render_docs(vars(self._pulumi_code)["__doc__"], resolve_outputs(outputs))
+                output = render_docs(
+                    vars(self._pulumi_code)["__doc__"], resolve_outputs(outputs)
+                )
             else:
                 output = "No template documentation found."
 
@@ -907,7 +914,7 @@ class Stack(object):
         """
         Executes custom Python function within a Pulumi stack
 
-        These functions are executed within the stack environment and are provided with all stack input parameters as well as current outputs.
+        These plugin functions are executed within the stack environment and are provided with all stack input parameters as well as current outputs.
         Think of "docker exec" into an existing container...
 
         """
