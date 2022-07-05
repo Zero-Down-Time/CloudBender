@@ -155,14 +155,13 @@ def outputs(cb, stack_names, multi, include, values):
 @click.command()
 @click.argument("stack_names", nargs=-1)
 @click.option("--multi", is_flag=True, help="Allow more than one stack to match")
-@click.option("--graph", is_flag=True, help="Create Dot Graph file")
 @click.pass_obj
-def docs(cb, stack_names, multi, graph):
+def docs(cb, stack_names, multi):
     """Outputs docs for stack(s). For Pulumi stacks prints out docstring. For CloudFormation templates render a markdown file. Same idea as helm-docs."""
 
     stacks = _find_stacks(cb, stack_names, multi)
     for s in stacks:
-        s.docs(graph=graph)
+        s.docs()
 
 
 @click.command()

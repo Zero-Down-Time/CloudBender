@@ -25,7 +25,6 @@ from .pulumi import pulumi_ws, resolve_outputs
 
 import cfnlint.core
 import cfnlint.template
-import cfnlint.graph
 
 from . import templates
 
@@ -580,11 +579,17 @@ class Stack(object):
             )
 
     @pulumi_ws
-    def docs(self, template=False, graph=False):
+    def docs(self, template=False):
         """Read rendered template, parse documentation fragments, eg. parameter description
         and create a mardown doc file for the stack. Same idea as helm-docs for the values.yaml
         """
 
+        doc_file = os.path.join(
+            self.ctx["docs_path"], self.rel_path, self.stackname + ".md"
+        )
+        ensure_dir(os.path.join(self.ctx["docs_path"], self.rel_path))
+
+        # For pulumi we use the embedded docstrings
         if self.mode == "pulumi":
             try:
                 pulumi_stack = self._get_pulumi_stack()
@@ -594,26 +599,23 @@ class Stack(object):
                 pass
 
             if vars(self._pulumi_code)["__doc__"]:
-                output = render_docs(
+                docs_out = render_docs(
                     vars(self._pulumi_code)["__doc__"], resolve_outputs(outputs)
                 )
             else:
-                output = "No template documentation found."
+                docs_out = "No stack documentation available."
 
             # collect all __doc__ from available _execute_ functions
             headerAdded = False
             for k in vars(self._pulumi_code).keys():
                 if k.startswith("_execute_"):
                     if not headerAdded:
-                        output = output + "\n# Available `execute` functions:  \n"
+                        docs_out = docs_out + "\n# Available *execute* functions:  \n"
                         headerAdded = True
                     docstring = vars(self._pulumi_code)[k].__doc__
-                    output = output + "\n* {}\n{}".format(
-                        k.lstrip("_execute_"), docstring
-                    )
+                    docs_out = docs_out + f"\n* {docstring}"
 
-            print(output)
-
+        # Cloudformation we use the stack-doc template similar to helm-docs
         else:
             try:
                 self.read_template_file()
@@ -655,45 +657,12 @@ class Stack(object):
                 except (FileNotFoundError, KeyError, TypeError):
                     pass
 
-            doc_file = os.path.join(
-                self.ctx["docs_path"], self.rel_path, self.stackname + ".md"
-            )
-            ensure_dir(os.path.join(self.ctx["docs_path"], self.rel_path))
+            docs_out = template.render(**data)
 
-            with open(doc_file, "w") as doc_contents:
-                doc_contents.write(template.render(**data))
-                logger.info(
-                    "Wrote documentation for %s to %s", self.stackname, doc_file
-                )
-
-            # Write Graph in Dot format
-            if graph:
-                filename = os.path.join(
-                    self.ctx["template_path"], self.rel_path, self.stackname + ".yaml"
-                )
-
-                lint_args = ["--template", filename]
-                (args, filenames, formatter) = cfnlint.core.get_args_filenames(
-                    lint_args
-                )
-                (template, rules, matches) = cfnlint.core.get_template_rules(
-                    filename, args
-                )
-                template_obj = cfnlint.template.Template(
-                    filename, template, [self.region]
-                )
-
-                path = os.path.join(
-                    self.ctx["docs_path"], self.rel_path, self.stackname + ".dot"
-                )
-                g = cfnlint.graph.Graph(template_obj)
-                try:
-                    g.to_dot(path)
-                    logger.info("DOT representation of the graph written to %s", path)
-                except ImportError:
-                    logger.error(
-                        "Could not write the graph in DOT format. Please install either `pygraphviz` or `pydot` modules."
-                    )
+        # Finally write docs to file
+        with open(doc_file, "w") as doc_contents:
+            doc_contents.write(docs_out)
+            logger.info("Wrote documentation for %s to %s", self.stackname, doc_file)
 
     def resolve_parameters(self):
         """Renders parameters for the stack based on the source template and the environment configuration"""
