@@ -894,11 +894,15 @@ class Stack(object):
         exec_function = f"_execute_{function}"
         if exec_function in vars(self._pulumi_code):
             pulumi_stack = self._get_pulumi_stack()
-            vars(self._pulumi_code)[exec_function](
-                config=pulumi_stack.get_all_config(),
-                outputs=pulumi_stack.outputs(),
-                args=args,
-            )
+
+            try:
+                vars(self._pulumi_code)[exec_function](
+                    config=pulumi_stack.get_all_config(),
+                    outputs=pulumi_stack.outputs(),
+                    args=args,
+                )
+            except Exception as e:
+                return e.returncode
 
         else:
             logger.error("{} is not defined in {}".format(function, self._pulumi_code))
