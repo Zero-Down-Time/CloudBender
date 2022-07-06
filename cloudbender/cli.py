@@ -201,7 +201,9 @@ def execute(cb, stack_name, function, args):
 
     for s in stacks:
         if s.mode == "pulumi":
-            s.execute(function, args)
+            ret = s.execute(function, args)
+            if ret:
+                raise click.Abort()
         else:
             logger.info(
                 "{} uses Cloudformation, no execute feature available.".format(
