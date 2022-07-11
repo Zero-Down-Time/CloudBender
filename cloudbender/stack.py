@@ -889,6 +889,14 @@ class Stack(object):
         """
         if not function:
             logger.error("No function specified !")
+            headerAdded = False
+            for k in vars(self._pulumi_code).keys():
+                if k.startswith("_execute_"):
+                    if not headerAdded:
+                        logger.info("Available execute functions:")
+                        headerAdded = True
+                    logger.info("{}".format(k.replace("_execute_", "- ")))
+
             return
 
         exec_function = f"_execute_{function}"
