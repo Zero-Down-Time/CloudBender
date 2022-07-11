@@ -17,6 +17,7 @@ dependencies = [
         "mock",
         "Jinja2>=3.0.0",
         "click",
+        "pexpect",
         "cfn-lint>=0.34",
         "python-minifier",
         "pulumi>=3.35.0",
