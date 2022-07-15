@@ -10,18 +10,18 @@ ifneq ($(TRIVY_REMOTE),)
   TRIVY_OPTS := --server ${TRIVY_REMOTE}
 endif
 
-.PHONY: test build test_upload upload all docker_build docker_test docker_push docker_scan
+.PHONY: pytest pybuild test_upload upload all build test push scan
 
-all: test build
+all: pytest pybuild
 
-test:
+pytest:
 	flake8 cloudbender tests
 	TEST=True pytest --log-cli-level=DEBUG
 
 clean:
 	rm -rf .cache build .coverage .eggs cloudbender.egg-info .pytest_cache dist
 
-build:
+pybuild:
 	hatchling build
 
 test_upload: pybuild
@@ -30,19 +30,19 @@ test_upload: pybuild
 upload: pybuild
 	twine upload -r pypi --non-interactive  dist/cloudbender-*.whl
 
-docker_build:
+build:
 	podman build --rm -t $(IMAGE):$(TAG) -t $(IMAGE):latest .
 
-docker_test:
+test:
 	@echo "Not implemented (yet)"
 
-docker_push:
+push:
 	aws ecr-public get-login-password --region $(REGION) | podman login --username AWS --password-stdin $(REGISTRY)
 	podman tag $(IMAGE):latest $(REGISTRY)/$(IMAGE):$(TAG) $(REGISTRY)/$(IMAGE):latest
 	podman push $(REGISTRY)/$(IMAGE):$(TAG)
 	podman push $(REGISTRY)/$(IMAGE):latest
 
-docker_scan:
+scan:
 	trivy image $(TRIVY_OPTS) $(IMAGE):$(TAG)
 
 # Delete all untagged images
