@@ -1,6 +1,6 @@
 ARG RUNTIME_VERSION="3.10"
 ARG DISTRO_VERSION="3.16"
-ARG PULUMI_VERSION="3.35.3"
+ARG PULUMI_VERSION="3.36.0"
 
 FROM python:${RUNTIME_VERSION}-alpine${DISTRO_VERSION} AS builder
 ARG PULUMI_VERSION
@@ -36,7 +36,7 @@ RUN pip install -r requirements.txt
 RUN pip install . --no-deps
 
 # minimal pulumi
-RUN cd /root/.pulumi/bin && rm -f *dotnet *nodejs *go *java && strip pulumi* || true
+RUN cd /root/.pulumi/bin && rm -f *dotnet *yaml *go *java && strip pulumi* || true
 
 
 # Now build the final runtime, incl. running rootless containers
@@ -68,19 +68,14 @@ RUN addgroup $USER && adduser $USER -G $USER -D && \
     chown $USER:$USER -R /home/$USER
 
 # Rootless podman
-# https://github.com/containers/podman/blob/main/contrib/podmanimage/stable/Containerfile
-ADD conf/containers.conf conf/registries.conf conf/storage.conf /etc/containers/
-ADD --chown=$USER:$USER conf/podman-containers.conf /home/$USER/.config/containers/containers.conf
+RUN mkdir -p /home/$USER/.config/containers
 
-RUN mkdir -p /var/lib/shared/overlay-images /var/lib/shared/overlay-layers \
-             /var/lib/shared/vfs-images /var/lib/shared/vfs-layers && \
-    touch /var/lib/shared/overlay-images/images.lock /var/lib/shared/overlay-layers/layers.lock \
-          /var/lib/shared/vfs-images/images.lock /var/lib/shared/vfs-layers/layers.lock && \
-		mkdir /tmp/podman-run-1000 && chown $USER:$USER /tmp/podman-run-1000 && chmod 700 /tmp/podman-run-1000 && \
-    echo -e "$USER:1:999\n$USER:1001:64535" > /etc/subuid && \
+ADD --chown=$USER:$USER conf/containers.conf conf/registries.conf conf/storage.conf /home/$USER/.config/containers
+
+RUN echo -e "$USER:1:999\n$USER:1001:64535" > /etc/subuid && \
     echo -e "$USER:1:999\n$USER:1001:64535" > /etc/subgid && \
-    mkdir /workspace && \
-    cd /usr/bin && ln -s podman docker
+    cd /usr/bin && ln -s podman docker && \
+    chown $USER:$USER -R /home/$USER
 
 WORKDIR /workspace
 
