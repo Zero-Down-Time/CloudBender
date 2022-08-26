@@ -782,19 +782,9 @@ class Stack(object):
 
             return status
 
-    @pulumi_ws
     @exec_hooks
     def update(self):
         """Updates an existing stack"""
-
-        # We cannot migrate directly so bail out if CFN stack still exists
-        if self.mode == "pulumi":
-            logger.error(
-                "Cloudformation stack {} still exists, cannot use Pulumi!".format(
-                    self.stackname
-                )
-            )
-            return
 
         # Prepare parameters
         self.resolve_parameters()

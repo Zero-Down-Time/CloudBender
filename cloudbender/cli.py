@@ -444,14 +444,19 @@ def _provision(cb, stacks):
     """Utility function to reuse code between tasks"""
     for step in sort_stacks(cb, stacks):
         if step:
-            # if there are any Pulumi stacks in the step execute serial
+            # Pulumi is not thread safe, so for now one by one
             if _anyPulumi(step):
                 for stack in step:
-                    status = stack.get_status()
-                    if not status:
-                        stack.create()
+                    if stack.mode != "pulumi":
+                        status = stack.get_status()
+                        if not status:
+                            stack.create()
+                        else:
+                            stack.update()
+
+                    # Pulumi only needs "up"
                     else:
-                        stack.update()
+                        stack.create()
 
             else:
                 with ThreadPoolExecutor(max_workers=len(step)) as group:

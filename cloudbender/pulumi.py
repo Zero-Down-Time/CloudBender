@@ -109,12 +109,11 @@ def pulumi_ws(func):
             except KeyError:
                 raise KeyError("Missing pulumi.backend setting !")
 
+            # Ugly hack as Pulumi currently doesnt support MFA_TOKENs during role assumptions
+            # Do NOT set them via 'aws:secretKey' as they end up in the self.json in plain text !!!
             account_id = self.connection_manager.call(
                 "sts", "get_caller_identity", profile=self.profile, region=self.region
             )["Account"]
-
-            # Ugly hack as Pulumi currently doesnt support MFA_TOKENs during role assumptions
-            # Do NOT set them via 'aws:secretKey' as they end up in the self.json in plain text !!!
             self.connection_manager.exportProfileEnv()
 
             # Secrets provider
