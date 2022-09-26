@@ -834,7 +834,12 @@ class Stack(object):
         logger.info("Deleting {0} {1}".format(self.region, self.stackname))
 
         if self.mode == "pulumi":
-            pulumi_stack = self._get_pulumi_stack()
+            try:
+                pulumi_stack = self._get_pulumi_stack()
+            except pulumi.automation.errors.StackNotFoundError:
+                logger.warning("Could not find Pulumi stack {}".format(self.stackname))
+                return
+
             pulumi_stack.destroy(on_output=self._log_pulumi)
             pulumi_stack.workspace.remove_stack(pulumi_stack.name)
 
