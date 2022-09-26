@@ -445,7 +445,7 @@ def _provision(cb, stacks):
     for step in sort_stacks(cb, stacks):
         if step:
             # Pulumi is not thread safe, so for now one by one
-            if _anyPulumi(step):
+            if _anyPulumi(step) and False:
                 for stack in step:
                     if stack.mode != "pulumi":
                         status = stack.get_status()
@@ -462,11 +462,16 @@ def _provision(cb, stacks):
                 with ThreadPoolExecutor(max_workers=len(step)) as group:
                     futures = []
                     for stack in step:
-                        status = stack.get_status()
-                        if not status:
-                            futures.append(group.submit(stack.create))
+                        if stack.mode != "pulumi":
+                            status = stack.get_status()
+                            if not status:
+                                futures.append(group.submit(stack.create))
+                            else:
+                                futures.append(group.submit(stack.update))
+
+                        # Pulumi only needs "up"
                         else:
-                            futures.append(group.submit(stack.update))
+                            futures.append(group.submit(stack.create))
 
                     for future in as_completed(futures):
                         future.result()
