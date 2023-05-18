@@ -498,6 +498,7 @@ class Stack(object):
             logger.info("Passed.")
             return 0
 
+    @pulumi_ws
     def get_outputs(self, include=".*", values=False):
         """gets outputs of the stack"""
 
