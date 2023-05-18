@@ -2,16 +2,17 @@
 GIT_BRANCH ?= $(shell git rev-parse --abbrev-ref HEAD 2>/dev/null)
 GIT_TAG := $(shell git describe --tags --match v*.*.* 2>/dev/null || git rev-parse --short HEAD 2>/dev/null)
 
-# append branch name to tag if NOT main nor master
 TAG := $(GIT_TAG)
+# append branch name to tag if NOT main nor master
 ifeq (,$(filter main master, $(GIT_BRANCH)))
-	ifneq ($(GIT_TAG), $(GIT_BRANCH))
-		TAG = $(GIT_TAG)-$(GIT_BRANCH)
+	# If branch is substring of tag, omit branch name
+	ifeq ($(findstring $(GIT_BRANCH), $(GIT_TAG)),)
+		# only append branch name if not equal tag
+		ifneq ($(GIT_TAG), $(GIT_BRANCH))
+			TAG = $(GIT_TAG)-$(GIT_BRANCH)
+		endif
 	endif
 endif
-
-# optionally set by the caller
-EXTRA_TAGS :=
 
 ARCH := amd64
 ALL_ARCHS := amd64 arm64
@@ -36,7 +37,7 @@ build: ## Build the app
 
 test: rm-test-image ## Execute Dockerfile.test
 	test -f Dockerfile.test && \
-		{ buildah build --rm --layers -t $(REGISTRY)/$(IMAGE):$(TAG)-test --from=$(REGISTRY)/$(IMAGE):$(TAG) -f Dockerfile.test --platform linux/$(_ARCH) . && \
+		{ buildah build --rm --layers -t $(REGISTRY)/$(IMAGE):$(TAG)-$(_ARCH)-test --from=$(REGISTRY)/$(IMAGE):$(TAG) -f Dockerfile.test --platform linux/$(_ARCH) . && \
 			podman run --rm --env-host -t $(REGISTRY)/$(IMAGE):$(TAG)-$(_ARCH)-test; } || \
 		echo "No Dockerfile.test found, skipping test"
 
