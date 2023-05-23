@@ -150,6 +150,9 @@ def pulumi_ws(func):
             )
             _tags["zdt:cloudbender.owner"] = f"{project_name}.{self.pulumi_stackname}"
 
+            # Inject all stack tags
+            _tags.update(self.tags)
+
             self.pulumi_config.update(
                 {
                     "aws:region": self.region,
