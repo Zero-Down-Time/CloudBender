@@ -117,6 +117,7 @@ def pulumi_ws(func):
             self.connection_manager.exportProfileEnv()
 
             # Secrets provider
+            secrets_provider = None
             if "secretsProvider" in self.pulumi:
                 secrets_provider = self.pulumi["secretsProvider"]
                 if (
@@ -126,16 +127,6 @@ def pulumi_ws(func):
                     raise ValueError(
                         "Missing PULUMI_CONFIG_PASSPHRASE environment variable!"
                     )
-
-            else:
-                try:
-                    if self._pulumi_code.IKNOWHATIDO:
-                        logger.warning(
-                            "Missing pulumi.secretsProvider setting, IKNOWHATIDO enabled ... "
-                        )
-                        secrets_provider = None
-                except AttributeError:
-                    raise ValueError("Missing pulumi.secretsProvider setting!")
 
             # Set tag for stack file name and version
             _tags = {}
