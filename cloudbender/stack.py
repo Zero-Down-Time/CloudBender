@@ -953,7 +953,7 @@ class Stack(object):
         """Set a config or secret"""
 
         pulumi_stack = self._get_pulumi_stack(create=True)
-        pulumi_stack.set_config(key, pulumi.automation.ConfigValue(value, secret))
+        pulumi_stack.set_config(key, pulumi.automation.ConfigValue(value, secret)) # Pulumi bug https://github.com/pulumi/pulumi/issues/13063 so no: , path=True)
 
         # Store salt or key and encrypted value in CloudBender stack config
         settings = None
@@ -974,9 +974,18 @@ class Stack(object):
 
             if "parameters" not in settings:
                 settings["parameters"] = {}
-            settings["parameters"][key] = pulumi_settings["config"][
-                "{}:{}".format(self.parameters["Conglomerate"], key)
-            ]
+
+
+            # hack for bug above, we support one level of nested values for now
+            _val = pulumi_settings["config"]["{}:{}".format(self.parameters["Conglomerate"], key)]
+            if '.' in key:
+                (root,leaf) = key.split('.')
+                if root not in settings["parameters"]:
+                    settings["parameters"][root] = {}
+
+                settings["parameters"][root][leaf] = _val
+            else:
+                settings["parameters"][key] = _val
 
         with open(self.path, "w") as file:
             yaml.dump(settings, stream=file)
@@ -987,7 +996,7 @@ class Stack(object):
     def get_config(self, key):
         """Get a config or secret"""
 
-        print(self._get_pulumi_stack().get_config(key).value)
+        print(self._get_pulumi_stack().get_config(key, path=True).value)
 
     def create_change_set(self, change_set_name):
         """Creates a Change Set with the name ``change_set_name``."""
