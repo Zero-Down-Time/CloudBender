@@ -15,6 +15,8 @@ from dateutil.tz import tzutc
 
 from botocore.exceptions import ClientError
 
+import ruamel.yaml
+
 from .utils import dict_merge, search_refs, ensure_dir, get_s3_url
 from .connection import BotoConnection
 from .jinja import JinjaEnv, read_config_file, render_docs
@@ -952,6 +954,10 @@ class Stack(object):
     def set_config(self, key, value, secret):
         """Set a config or secret"""
 
+        ryaml = ruamel.yaml.YAML()
+        ryaml.indent(mapping=2)
+        ryaml.preserve_quotes = True
+
         pulumi_stack = self._get_pulumi_stack(create=True)
         pulumi_stack.set_config(key, pulumi.automation.ConfigValue(value, secret)) # Pulumi bug https://github.com/pulumi/pulumi/issues/13063 so no: , path=True)
 
@@ -962,7 +968,7 @@ class Stack(object):
         )._serialize()
 
         with open(self.path, "r") as file:
-            settings = yaml.safe_load(file)
+            settings = ryaml.load(file)
 
             if "pulumi" not in settings:
                 settings["pulumi"] = {}
@@ -974,7 +980,6 @@ class Stack(object):
 
             if "parameters" not in settings:
                 settings["parameters"] = {}
-
 
             # hack for bug above, we support one level of nested values for now
             _val = pulumi_settings["config"]["{}:{}".format(self.parameters["Conglomerate"], key)]
@@ -988,7 +993,7 @@ class Stack(object):
                 settings["parameters"][key] = _val
 
         with open(self.path, "w") as file:
-            yaml.dump(settings, stream=file)
+            ryaml.dump(settings, stream=file)
 
         return
 
