@@ -5,6 +5,7 @@ click
 pexpect
 python-minifier
 cfn-lint>=0.34
+ruamel-yaml
 pulumi>=3.80.0
 pulumi-aws>6.0.0
 pulumi-aws-native
