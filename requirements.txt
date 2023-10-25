@@ -1,16 +1,16 @@
-boto3
-mock
-Jinja2>=3.0.0
-click
-pexpect
-python-minifier
-cfn-lint>=0.34
-ruamel-yaml
-pulumi>=3.80.0
-pulumi-aws>6.0.0
-pulumi-aws-native
-pulumi-policy
-pulumi-command
+boto3==1.28.70
+mock==5.1.0
+Jinja2==3.1.2
+click==8.1.7
+pexpect==4.8.0
+python-minifier==2.9.0
+cfn-lint==0.83.0
+ruamel.yaml==0.18.2
+pulumi==3.89.0
+pulumi-aws==6.6.1
+pulumi-aws-native==0.82.0
+pulumi-policy==1.7.0
+pulumi-command==0.9.1
 
 # flake8
 # pytest
