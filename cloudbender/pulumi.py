@@ -6,10 +6,13 @@ import tempfile
 import importlib
 import pulumi
 import subprocess
+import semver
 
 from functools import wraps
 
 import logging
+
+from . import __version__
 
 logger = logging.getLogger(__name__)
 
@@ -134,6 +137,17 @@ def pulumi_ws(func):
                 _version = self._pulumi_code.VERSION
             except AttributeError:
                 _version = "undefined"
+
+            # bail out if we need a minimal cloudbender version for a template
+            try:
+                _min_version = self._pulumi_code.MIN_CLOUDBENDER_VERSION
+                if semver.compare(__version__.strip("v"),_min_version.strip("v")) < 0:
+                    raise ValueError(
+                        f"Minimal required CloudBender version is {_min_version}, but we are {__version__}!"
+                    )
+
+            except AttributeError:
+                pass
 
             # Tag all resources with our metadata, allowing "prune" eventually
             _tags["zdt:cloudbender.source"] = "{}:{}".format(
