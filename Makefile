@@ -4,11 +4,11 @@ REGION := us-east-1
 
 include .ci/podman.mk
 
-pytest:
+test::
 	flake8 cloudbender tests
 	TEST=True pytest --log-cli-level=DEBUG
 
-pyclean:
+clean::
 	rm -rf .cache build .coverage .eggs cloudbender.egg-info .pytest_cache dist
 
 pybuild:
