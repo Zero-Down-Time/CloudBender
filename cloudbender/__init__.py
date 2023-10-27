@@ -1,12 +1,12 @@
 import logging
-import pkg_resources
+import importlib.metadata
 
 __author__ = "Stefan Reimer"
 __email__ = "stefan@zero-downtimet.net"
 
 try:
-    __version__ = pkg_resources.get_distribution("CloudBender").version
-except pkg_resources.DistributionNotFound:
+    __version__ = importlib.metadata.distribution("CloudBender").version
+except importlib.metadata.PackageNotFoundError:
     __version__ = "devel"
 
 
