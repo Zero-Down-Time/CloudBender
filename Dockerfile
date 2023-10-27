@@ -4,6 +4,7 @@ ARG PULUMI_VERSION="3.91.0"
 
 FROM python:${RUNTIME_VERSION}-alpine${DISTRO_VERSION} AS builder
 ARG PULUMI_VERSION
+ARG RUNTIME_VERSION="3.11"
 
 RUN apk add --no-cache \
     autoconf \
