@@ -38,6 +38,8 @@ RUN pip install . --no-deps
 # minimal pulumi
 RUN cd /root/.pulumi/bin && rm -f *dotnet *yaml *go *java && strip pulumi* || true
 
+# Remove AWS keys from docstring to prevent trivy alerts later
+sed -i -e 's/AKIA.*//' /venv/lib/python${RUNTIME_VERSION}/site-packages/pulumi_aws/lightsail/bucket_access_key.py
 
 # Now build the final runtime, incl. running rootless containers
 FROM python:${RUNTIME_VERSION}-alpine${DISTRO_VERSION}
