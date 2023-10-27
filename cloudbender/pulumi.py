@@ -38,7 +38,7 @@ def resolve_outputs(outputs):
     my_outputs = {}
 
     for k, v in outputs.items():
-        if type(v) == pulumi.automation._output.OutputValue:
+        if isinstance(v, pulumi.automation._output.OutputValue):
             if v.secret:
                 my_outputs[k] = "***"
             else:
@@ -58,7 +58,8 @@ def pulumi_ws(func):
                 dir=tempfile.gettempdir(), prefix="cloudbender-"
             )
 
-            # add all artifact_paths/pulumi to the search path for easier imports in the pulumi code
+            # add all artifact_paths/pulumi to the search path for easier
+            # imports in the pulumi code
             for artifacts_path in self.ctx["artifact_paths"]:
                 _path = "{}/pulumi".format(artifacts_path.resolve())
                 sys.path.append(_path)
@@ -67,10 +68,9 @@ def pulumi_ws(func):
             _found = False
             try:
                 _stack = importlib.import_module(
-                    "config.{}.{}".format(self.rel_path, self.template).replace(
-                        "/", "."
-                    )
-                )
+                    "config.{}.{}".format(
+                        self.rel_path, self.template).replace(
+                        "/", "."))
                 _found = True
 
             except ImportError:
@@ -91,8 +91,8 @@ def pulumi_ws(func):
 
             if not _found:
                 raise FileNotFoundError(
-                    "Cannot find Pulumi implementation for {}".format(self.stackname)
-                )
+                    "Cannot find Pulumi implementation for {}".format(
+                        self.stackname))
 
             # Store internal pulumi code reference
             self._pulumi_code = _stack
@@ -100,7 +100,8 @@ def pulumi_ws(func):
             # Use legacy Conglomerate as Pulumi project_name
             project_name = self.parameters["Conglomerate"]
 
-            # Remove stacknameprefix if equals Conglomerate as Pulumi implicitly prefixes project_name
+            # Remove stacknameprefix if equals Conglomerate as Pulumi
+            # implicitly prefixes project_name
             self.pulumi_stackname = re.sub(
                 r"^" + project_name + "-?", "", self.stackname
             )
@@ -113,10 +114,13 @@ def pulumi_ws(func):
                 raise KeyError("Missing pulumi.backend setting !")
 
             # Ugly hack as Pulumi currently doesnt support MFA_TOKENs during role assumptions
-            # Do NOT set them via 'aws:secretKey' as they end up in the self.json in plain text !!!
+            # Do NOT set them via 'aws:secretKey' as they end up in the
+            # self.json in plain text !!!
             account_id = self.connection_manager.call(
-                "sts", "get_caller_identity", profile=self.profile, region=self.region
-            )["Account"]
+                "sts",
+                "get_caller_identity",
+                profile=self.profile,
+                region=self.region)["Account"]
             self.connection_manager.exportProfileEnv()
 
             # Secrets provider
@@ -141,7 +145,9 @@ def pulumi_ws(func):
             # bail out if we need a minimal cloudbender version for a template
             try:
                 _min_version = self._pulumi_code.MIN_CLOUDBENDER_VERSION
-                if semver.compare(__version__.strip("v"),_min_version.strip("v")) < 0:
+                if semver.compare(
+                        __version__.strip("v"),
+                        _min_version.strip("v")) < 0:
                     raise ValueError(
                         f"Minimal required CloudBender version is {_min_version}, but we are {__version__}!"
                     )

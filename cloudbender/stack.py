@@ -41,7 +41,8 @@ class SafeLoaderIgnoreUnknown(yaml.SafeLoader):
         return node.tag
 
 
-SafeLoaderIgnoreUnknown.add_constructor(None, SafeLoaderIgnoreUnknown.ignore_unknown)
+SafeLoaderIgnoreUnknown.add_constructor(
+    None, SafeLoaderIgnoreUnknown.ignore_unknown)
 
 
 class Stack(object):
@@ -91,7 +92,10 @@ class Stack(object):
         self.pulumi_ws_opts = None
 
     def dump_config(self):
-        logger.debug("<Stack {}: {}>".format(self.id, pprint.pformat(vars(self))))
+        logger.debug(
+            "<Stack {}: {}>".format(
+                self.id, pprint.pformat(
+                    vars(self))))
 
     def read_config(self, sg_config={}):
         """reads stack config"""
@@ -107,7 +111,8 @@ class Stack(object):
             if p in sg_config:
                 setattr(self, p, sg_config[p])
 
-        # profile and region need special treatment due to cmd line overwrite option
+        # profile and region need special treatment due to cmd line overwrite
+        # option
         if self.ctx["region"]:
             self.region = self.ctx["region"]
 
@@ -184,18 +189,24 @@ class Stack(object):
         jenv = JinjaEnv(self.ctx["artifact_paths"])
         jenv.globals["_config"] = _config
 
-        template = jenv.get_template("{0}{1}".format(self.template, ".yaml.jinja"))
+        template = jenv.get_template(
+            "{0}{1}".format(
+                self.template,
+                ".yaml.jinja"))
 
         logger.info("Rendering %s", template.filename)
 
         try:
             self.cfn_template = template.render(_config)
-            self.cfn_data = yaml.load(self.cfn_template, Loader=SafeLoaderIgnoreUnknown)
+            self.cfn_data = yaml.load(
+                self.cfn_template,
+                Loader=SafeLoaderIgnoreUnknown)
         except Exception as e:
             # In case we rendered invalid yaml this helps to debug
             if self.cfn_template:
                 _output = ""
-                for i, line in enumerate(self.cfn_template.splitlines(), start=1):
+                for i, line in enumerate(
+                        self.cfn_template.splitlines(), start=1):
                     _output = _output + "{}: {}\n".format(i, line)
                 logger.error(_output)
             raise e
@@ -237,16 +248,21 @@ class Stack(object):
             self.cfn_template = re.sub(
                 r"Parameters:", r"Parameters:" + _res + "\n", self.cfn_template
             )
-            logger.info("Piped mode: Added parameters for remote stack references")
+            logger.info(
+                "Piped mode: Added parameters for remote stack references")
 
         # Re-read updated template
-        self.cfn_data = yaml.load(self.cfn_template, Loader=SafeLoaderIgnoreUnknown)
+        self.cfn_data = yaml.load(
+            self.cfn_template,
+            Loader=SafeLoaderIgnoreUnknown)
 
-        # Check for empty top level Parameters, Outputs and Conditions and remove
+        # Check for empty top level Parameters, Outputs and Conditions and
+        # remove
         for key in ["Parameters", "Outputs", "Conditions"]:
             if key in self.cfn_data and not self.cfn_data[key]:
                 del self.cfn_data[key]
-                self.cfn_template = self.cfn_template.replace("\n" + key + ":", "")
+                self.cfn_template = self.cfn_template.replace(
+                    "\n" + key + ":", "")
 
         # Remove and condense multiple empty lines
         self.cfn_template = re.sub(r"\n\s*\n", "\n\n", self.cfn_template)
@@ -281,12 +297,11 @@ class Stack(object):
                 if our_md5 != self.md5:
                     raise ChecksumError(
                         "Template hash checksum mismatch! Expected: {} Got: {}".format(
-                            self.md5, our_md5
-                        )
-                    ) from None
+                            self.md5, our_md5)) from None
 
             except KeyError:
-                raise ChecksumError("Template missing Hash checksum!") from None
+                raise ChecksumError(
+                    "Template missing Hash checksum!") from None
 
         # Add CloudBender dependencies
         include = []
@@ -300,7 +315,11 @@ class Stack(object):
         # Extract hooks
         try:
             for hook, func in self.cfn_data["Metadata"]["Hooks"].items():
-                if hook in ["post_update", "post_create", "pre_create", "pre_update"]:
+                if hook in [
+                    "post_update",
+                    "post_create",
+                    "pre_create",
+                        "pre_update"]:
                     if isinstance(func, list):
                         self.hooks[hook].extend(func)
                     else:
@@ -311,8 +330,9 @@ class Stack(object):
     def write_template_file(self):
         if self.cfn_template:
             yaml_file = os.path.join(
-                self.ctx["template_path"], self.rel_path, self.stackname + ".yaml"
-            )
+                self.ctx["template_path"],
+                self.rel_path,
+                self.stackname + ".yaml")
             ensure_dir(os.path.join(self.ctx["template_path"], self.rel_path))
             with open(yaml_file, "w") as yaml_contents:
                 yaml_contents.write(self.cfn_template)
@@ -339,7 +359,8 @@ class Stack(object):
                         region=self.region,
                     )
 
-                    logger.info("Uploaded template to s3://{}/{}".format(bucket, path))
+                    logger.info(
+                        "Uploaded template to s3://{}/{}".format(bucket, path))
                 except ClientError as e:
                     logger.error(
                         "Error trying to upload template so S3: {}, {}".format(
@@ -356,8 +377,8 @@ class Stack(object):
                     )
         else:
             logger.error(
-                "No cfn template rendered yet for stack {}.".format(self.stackname)
-            )
+                "No cfn template rendered yet for stack {}.".format(
+                    self.stackname))
 
     def delete_template_file(self):
         yaml_file = os.path.join(
@@ -371,9 +392,8 @@ class Stack(object):
 
         if self.template_bucket_url:
             try:
-                (bucket, path) = get_s3_url(
-                    self.template_bucket_url, self.rel_path, self.stackname + ".yaml"
-                )
+                (bucket, path) = get_s3_url(self.template_bucket_url,
+                                            self.rel_path, self.stackname + ".yaml")
                 self.connection_manager.call(
                     "s3",
                     "delete_object",
@@ -382,7 +402,8 @@ class Stack(object):
                     region=self.region,
                 )
 
-                logger.info("Deleted template from s3://{}/{}".format(bucket, path))
+                logger.info(
+                    "Deleted template from s3://{}/{}".format(bucket, path))
             except ClientError as e:
                 logger.error(
                     "Error trying to delete template from S3: {}, {}".format(
@@ -407,7 +428,8 @@ class Stack(object):
                         profile=self.profile,
                         region=self.region,
                     )
-                    logger.debug("Got template from s3://{}/{}".format(bucket, path))
+                    logger.debug(
+                        "Got template from s3://{}/{}".format(bucket, path))
 
                     self.cfn_template = template["Body"].read().decode("utf-8")
 
@@ -417,7 +439,10 @@ class Stack(object):
                         self.rel_path,
                         self.stackname + ".yaml",
                     )
-                    ensure_dir(os.path.join(self.ctx["template_path"], self.rel_path))
+                    ensure_dir(
+                        os.path.join(
+                            self.ctx["template_path"],
+                            self.rel_path))
                     with open(yaml_file, "w") as yaml_contents:
                         yaml_contents.write(self.cfn_template)
 
@@ -430,18 +455,22 @@ class Stack(object):
 
             else:
                 yaml_file = os.path.join(
-                    self.ctx["template_path"], self.rel_path, self.stackname + ".yaml"
-                )
+                    self.ctx["template_path"],
+                    self.rel_path,
+                    self.stackname + ".yaml")
 
                 try:
                     with open(yaml_file, "r") as yaml_contents:
                         self.cfn_template = yaml_contents.read()
                         logger.debug("Read cfn template %s.", yaml_file)
                 except FileNotFoundError as e:
-                    logger.warn("Could not find template file: {}".format(yaml_file))
+                    logger.warn(
+                        "Could not find template file: {}".format(yaml_file))
                     raise e
 
-            self.cfn_data = yaml.load(self.cfn_template, Loader=SafeLoaderIgnoreUnknown)
+            self.cfn_data = yaml.load(
+                self.cfn_template,
+                Loader=SafeLoaderIgnoreUnknown)
             self._parse_metadata()
 
         else:
@@ -456,7 +485,8 @@ class Stack(object):
         except KeyError:
             ignore_checks = []
 
-        # Ignore some more checks around injected parameters as we generate these
+        # Ignore some more checks around injected parameters as we generate
+        # these
         if self.mode == "Piped":
             ignore_checks = ignore_checks + ["W2505", "W2509", "W2507"]
 
@@ -491,7 +521,12 @@ class Stack(object):
             region = "us-east-1"
 
         if not matches:
-            matches.extend(cfnlint.core.run_checks(filename, template, rules, [region]))
+            matches.extend(
+                cfnlint.core.run_checks(
+                    filename,
+                    template,
+                    rules,
+                    [region]))
         if len(matches):
             for match in matches:
                 logger.error(formatter._format(match))
@@ -520,7 +555,8 @@ class Stack(object):
 
                 try:
                     for output in stacks[0]["Outputs"]:
-                        self.outputs[output["OutputKey"]] = output["OutputValue"]
+                        self.outputs[output["OutputKey"]
+                                     ] = output["OutputValue"]
                     logger.debug(
                         "Stack outputs for {} in {}: {}".format(
                             self.stackname, self.region, self.outputs
@@ -530,18 +566,24 @@ class Stack(object):
                     pass
 
             except ClientError:
-                logger.warn("Could not get outputs of {}".format(self.stackname))
+                logger.warn(
+                    "Could not get outputs of {}".format(
+                        self.stackname))
                 pass
 
         if self.outputs:
             if self.store_outputs:
                 filename = self.stackname + ".yaml"
-                my_template = importlib.resources.read_text(templates, "outputs.yaml")
+                my_template = importlib.resources.read_text(
+                    templates, "outputs.yaml")
 
                 output_file = os.path.join(
                     self.ctx["outputs_path"], self.rel_path, filename
                 )
-                ensure_dir(os.path.join(self.ctx["outputs_path"], self.rel_path))
+                ensure_dir(
+                    os.path.join(
+                        self.ctx["outputs_path"],
+                        self.rel_path))
 
                 # Blacklist at least AWS SecretKeys from leaking into git
                 # Pulumi to the rescue soon
@@ -567,19 +609,24 @@ class Stack(object):
                 with open(output_file, "w") as output_contents:
                     output_contents.write(template.render(**data))
                     logger.info(
-                        "Wrote outputs for %s to %s", self.stackname, output_file
-                    )
+                        "Wrote outputs for %s to %s",
+                        self.stackname,
+                        output_file)
 
             # If secrets replace with clear values for now, display ONLY
             for k in self.outputs.keys():
-                if hasattr(self.outputs[k], "secret") and self.outputs[k].secret:
+                if hasattr(
+                        self.outputs[k],
+                        "secret") and self.outputs[k].secret:
                     self.outputs[k] = self.outputs[k].value
 
             logger.info(
                 "{} {} Outputs:\n{}".format(
-                    self.region, self.stackname, pprint.pformat(self.outputs, indent=2)
-                )
-            )
+                    self.region,
+                    self.stackname,
+                    pprint.pformat(
+                        self.outputs,
+                        indent=2)))
 
     @pulumi_ws
     def docs(self, template=False):
@@ -603,8 +650,9 @@ class Stack(object):
 
             if vars(self._pulumi_code)["__doc__"]:
                 docs_out = render_docs(
-                    vars(self._pulumi_code)["__doc__"], resolve_outputs(outputs)
-                )
+                    vars(
+                        self._pulumi_code)["__doc__"],
+                    resolve_outputs(outputs))
             else:
                 docs_out = "No stack documentation available."
 
@@ -626,7 +674,8 @@ class Stack(object):
                 return
 
             if not template:
-                doc_template = importlib.resources.read_text(templates, "stack-doc.md")
+                doc_template = importlib.resources.read_text(
+                    templates, "stack-doc.md")
                 jenv = JinjaEnv()
                 template = jenv.from_string(doc_template)
                 data = {}
@@ -646,10 +695,12 @@ class Stack(object):
             if "Outputs" in self.cfn_data:
                 data["outputs"] = self.cfn_data["Outputs"]
 
-                # Check for existing outputs yaml, if found add current value column and set header to timestamp from outputs file
+                # Check for existing outputs yaml, if found add current value
+                # column and set header to timestamp from outputs file
                 output_file = os.path.join(
-                    self.ctx["outputs_path"], self.rel_path, self.stackname + ".yaml"
-                )
+                    self.ctx["outputs_path"],
+                    self.rel_path,
+                    self.stackname + ".yaml")
 
                 try:
                     with open(output_file, "r") as yaml_contents:
@@ -665,14 +716,18 @@ class Stack(object):
         # Finally write docs to file
         with open(doc_file, "w") as doc_contents:
             doc_contents.write(docs_out)
-            logger.info("Wrote documentation for %s to %s", self.stackname, doc_file)
+            logger.info(
+                "Wrote documentation for %s to %s",
+                self.stackname,
+                doc_file)
 
     def resolve_parameters(self):
         """Renders parameters for the stack based on the source template and the environment configuration"""
 
         self.read_template_file()
 
-        # if we run in Piped Mode, inspect all outputs of the running Conglomerate members
+        # if we run in Piped Mode, inspect all outputs of the running
+        # Conglomerate members
         if self.mode == "Piped":
             stack_outputs = {}
             try:
@@ -685,21 +740,26 @@ class Stack(object):
             _errors = []
             self.cfn_parameters = []
             for p in self.cfn_data["Parameters"]:
-                # In Piped mode we try to resolve all Paramters first via stack_outputs
+                # In Piped mode we try to resolve all Paramters first via
+                # stack_outputs
                 if self.mode == "Piped":
                     try:
-                        # first reverse the rename due to AWS alphanumeric restriction for parameter names
+                        # first reverse the rename due to AWS alphanumeric
+                        # restriction for parameter names
                         _p = p.replace("DoT", ".")
                         value = str(stack_outputs[_p])
                         self.cfn_parameters.append(
                             {"ParameterKey": p, "ParameterValue": value}
                         )
-                        logger.info("Got {} = {} from running stack".format(p, value))
+                        logger.info(
+                            "Got {} = {} from running stack".format(
+                                p, value))
                         continue
                     except KeyError:
                         pass
 
-                # Key name in config tree is: stacks.<self.stackname>.parameters.<parameter>
+                # Key name in config tree is:
+                # stacks.<self.stackname>.parameters.<parameter>
                 if p in self.parameters:
                     value = str(self.parameters[p])
                     self.cfn_parameters.append(
@@ -715,7 +775,8 @@ class Stack(object):
 
                     _found[p] = value
                 else:
-                    # If we have a Default defined in the CFN skip, as AWS will use it
+                    # If we have a Default defined in the CFN skip, as AWS will
+                    # use it
                     if "Default" not in self.cfn_data["Parameters"][p]:
                         _errors.append(p)
 
@@ -724,7 +785,8 @@ class Stack(object):
                     "Cannot find value for parameters: {0}".format(_errors)
                 )
 
-            # Warning of excessive parameters, might be useful to spot typos early
+            # Warning of excessive parameters, might be useful to spot typos
+            # early
             _warnings = []
             for p in self.parameters.keys():
                 if p not in self.cfn_data["Parameters"]:
@@ -732,12 +794,15 @@ class Stack(object):
 
             logger.info(
                 "{} {} set parameters:\n{}".format(
-                    self.region, self.stackname, pprint.pformat(_found, indent=2)
-                )
-            )
+                    self.region,
+                    self.stackname,
+                    pprint.pformat(
+                        _found,
+                        indent=2)))
 
             if _warnings:
-                logger.warning("Ignored additional parameters: {}.".format(_warnings))
+                logger.warning(
+                    "Ignored additional parameters: {}.".format(_warnings))
 
         # Return dict of explicitly set parameters
         return _found
@@ -840,7 +905,9 @@ class Stack(object):
             try:
                 pulumi_stack = self._get_pulumi_stack()
             except pulumi.automation.errors.StackNotFoundError:
-                logger.warning("Could not find Pulumi stack {}".format(self.stackname))
+                logger.warning(
+                    "Could not find Pulumi stack {}".format(
+                        self.stackname))
                 return
 
             pulumi_stack.destroy(on_output=self._log_pulumi)
@@ -911,7 +978,9 @@ class Stack(object):
                 return e.returncode
 
         else:
-            logger.error("{} is not defined in {}".format(function, self._pulumi_code))
+            logger.error(
+                "{} is not defined in {}".format(
+                    function, self._pulumi_code))
 
     @pulumi_ws
     def assimilate(self):
@@ -927,7 +996,9 @@ class Stack(object):
                     "Please enter ID for {} ({}):".format(r["name"], r["type"])
                 )
 
-            logger.info("Importing {} ({}) as {}".format(r_id, r["type"], r["name"]))
+            logger.info(
+                "Importing {} ({}) as {}".format(
+                    r_id, r["type"], r["name"]))
 
             args = ["import", r["type"], r["name"], r_id, "--yes"]
             pulumi_stack._run_pulumi_cmd_sync(args)
@@ -944,7 +1015,9 @@ class Stack(object):
         if remove_pending_operations:
             deployment.deployment.pop("pending_operations", None)
             pulumi_stack.import_stack(deployment)
-            logger.info("Removed all pending_operations from %s" % self.stackname)
+            logger.info(
+                "Removed all pending_operations from %s" %
+                self.stackname)
         else:
             print(json.dumps(deployment.deployment))
 
@@ -959,7 +1032,11 @@ class Stack(object):
         ryaml.preserve_quotes = True
 
         pulumi_stack = self._get_pulumi_stack(create=True)
-        pulumi_stack.set_config(key, pulumi.automation.ConfigValue(value, secret)) # Pulumi bug https://github.com/pulumi/pulumi/issues/13063 so no: , path=True)
+        # Pulumi bug https://github.com/pulumi/pulumi/issues/13063 so no: ,
+        # path=True)
+        pulumi_stack.set_config(
+            key, pulumi.automation.ConfigValue(
+                value, secret))
 
         # Store salt or key and encrypted value in CloudBender stack config
         settings = None
@@ -981,9 +1058,10 @@ class Stack(object):
             if "parameters" not in settings:
                 settings["parameters"] = {}
             # hack for bug above, we support one level of nested values for now
-            _val = pulumi_settings["config"]["{}:{}".format(self.parameters["Conglomerate"], key)]
+            _val = pulumi_settings["config"]["{}:{}".format(
+                self.parameters["Conglomerate"], key)]
             if '.' in key:
-                (root,leaf) = key.split('.')
+                (root, leaf) = key.split('.')
                 if root not in settings["parameters"]:
                     settings["parameters"][root] = {}
 
@@ -1085,7 +1163,8 @@ class Stack(object):
 
         status = "IN_PROGRESS"
 
-        self.most_recent_event_datetime = datetime.now(tzutc()) - timedelta(seconds=3)
+        self.most_recent_event_datetime = datetime.now(
+            tzutc()) - timedelta(seconds=3)
         elapsed = 0
         while status == "IN_PROGRESS" and not timed_out(elapsed):
             status = self._get_simplified_status(self.get_status())
@@ -1158,10 +1237,12 @@ class Stack(object):
                     stacks.append(stack)
                     break
 
-        # Gather stack outputs, use Tag['Artifact'] as name space: Artifact.OutputName
+        # Gather stack outputs, use Tag['Artifact'] as name space:
+        # Artifact.OutputName
         stack_outputs = {}
         for stack in stacks:
-            # If stack has an Artifact Tag put resources into the namespace Artifact.Resource
+            # If stack has an Artifact Tag put resources into the namespace
+            # Artifact.Resource
             artifact = None
             for tag in stack["Tags"]:
                 if tag["Key"] == "Artifact":
@@ -1174,7 +1255,8 @@ class Stack(object):
 
             try:
                 for output in stack["Outputs"]:
-                    # Gather all outputs of the stack into one dimensional key=value structure
+                    # Gather all outputs of the stack into one dimensional
+                    # key=value structure
                     stack_outputs[key_prefix + output["OutputKey"]] = output[
                         "OutputValue"
                     ]
@@ -1188,9 +1270,8 @@ class Stack(object):
         if self.template_bucket_url:
             # https://bucket-name.s3.Region.amazonaws.com/key name
             # so we need the region, AWS as usual
-            (bucket, path) = get_s3_url(
-                self.template_bucket_url, self.rel_path, self.stackname + ".yaml"
-            )
+            (bucket, path) = get_s3_url(self.template_bucket_url,
+                                        self.rel_path, self.stackname + ".yaml")
             bucket_region = self.connection_manager.call(
                 "s3",
                 "get_bucket_location",
@@ -1261,7 +1342,8 @@ class Stack(object):
                         kwargs["policy_packs"].append(path)
                         found = True
                 if not found:
-                    logger.error(f"Could not find policy implementation for {policy}!")
+                    logger.error(
+                        f"Could not find policy implementation for {policy}!")
                     raise FileNotFoundError
 
         try:
