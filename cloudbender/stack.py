@@ -980,7 +980,6 @@ class Stack(object):
 
             if "parameters" not in settings:
                 settings["parameters"] = {}
-
             # hack for bug above, we support one level of nested values for now
             _val = pulumi_settings["config"]["{}:{}".format(self.parameters["Conglomerate"], key)]
             if '.' in key:
