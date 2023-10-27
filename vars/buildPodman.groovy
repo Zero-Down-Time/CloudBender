@@ -2,6 +2,9 @@
 
 def call(Map config=[:]) {
     pipeline {
+      options {
+        disableConcurrentBuilds()
+      }
       agent {
         node {
           label 'podman-aws-trivy'
