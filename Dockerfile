@@ -1,6 +1,6 @@
 ARG RUNTIME_VERSION="3.11"
 ARG DISTRO_VERSION="3.18"
-ARG PULUMI_VERSION="3.91.0"
+ARG PULUMI_VERSION="3.89.0"
 
 FROM python:${RUNTIME_VERSION}-alpine${DISTRO_VERSION} AS builder
 ARG PULUMI_VERSION
@@ -33,8 +33,7 @@ ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 # Install CloudBender
 WORKDIR /app
 COPY . /app
-RUN pip install -r requirements.txt
-RUN pip install . --no-deps
+RUN pip install .
 
 # minimal pulumi
 RUN cd /root/.pulumi/bin && rm -f *dotnet *yaml *go *java && strip pulumi* || true
