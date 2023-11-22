@@ -4,7 +4,7 @@ REGION := us-east-1
 
 include .ci/podman.mk
 
-test::
+pytest::
 	flake8 cloudbender tests
 	TEST=True pytest --log-cli-level=DEBUG
 
