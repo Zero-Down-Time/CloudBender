@@ -3,7 +3,8 @@
   "extends": [
     "config:recommended",
     ":label(renovate)",
-    ":semanticCommits"
+    ":semanticCommits",
+    "group:allNonMajor"
   ],
   "prHourlyLimit": 0
 }
