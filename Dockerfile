@@ -1,9 +1,7 @@
 ARG RUNTIME_VERSION="3.11"
 ARG DISTRO_VERSION="3.18"
-ARG PULUMI_VERSION="3.89.0"
 
 FROM python:${RUNTIME_VERSION}-alpine${DISTRO_VERSION} AS builder
-ARG PULUMI_VERSION
 ARG RUNTIME_VERSION="3.11"
 
 RUN apk add --no-cache \
@@ -20,12 +18,6 @@ RUN apk add --no-cache \
     openssl-dev \
     git
 
-RUN if [ "$PULUMI_VERSION" = "latest" ]; then \
-    curl -fsSL https://get.pulumi.com/ | sh; \
-  else \
-    curl -fsSL https://get.pulumi.com/ | sh -s -- --version $PULUMI_VERSION ; \
-  fi
-
 ENV VIRTUAL_ENV=/venv
 RUN python -m venv $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
@@ -33,7 +25,10 @@ ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 # Install CloudBender
 WORKDIR /app
 COPY . /app
-RUN pip install .
+RUN pip install . --disable-pip-version-check
+
+# Install matching Pulumi binaries
+RUN curl -fsSL https://get.pulumi.com/ | sh -s -- --version $(pip show pulumi --disable-pip-version-check | grep Version: | awk '{print $2}')
 
 # minimal pulumi
 RUN cd /root/.pulumi/bin && rm -f *dotnet *yaml *go *java && strip pulumi* || true
