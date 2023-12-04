@@ -613,14 +613,14 @@ class Stack(object):
                         self.stackname,
                         output_file)
 
-            # If secrets replace with clear values for now, display ONLY
+            # If secrets replace with cleartext values for now, display ONLY
             for k in self.outputs.keys():
                 if hasattr(
                         self.outputs[k],
                         "secret") and self.outputs[k].secret:
                     self.outputs[k] = self.outputs[k].value
 
-            logger.info(
+            logger.debug(
                 "{} {} Outputs:\n{}".format(
                     self.region,
                     self.stackname,
@@ -815,6 +815,7 @@ class Stack(object):
         if self.mode == "pulumi":
             kwargs = self._set_pulumi_args()
             self._get_pulumi_stack(create=True).up(**kwargs)
+            status = "COMPLETE"
 
         else:
             # Prepare parameters
@@ -846,9 +847,10 @@ class Stack(object):
             )
 
             status = self._wait_for_completion()
-            self.get_outputs()
 
-            return status
+        self.get_outputs()
+
+        return status
 
     @exec_hooks
     def update(self):
