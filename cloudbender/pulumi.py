@@ -146,7 +146,7 @@ def pulumi_ws(func):
             try:
                 _min_version = self._pulumi_code.MIN_CLOUDBENDER_VERSION
                 if semver.compare(
-                        __version__.strip("v"),
+                        semver.Version.parse(__version__.strip("v")).finalize_version(),
                         _min_version.strip("v")) < 0:
                     raise ValueError(
                         f"Minimal required CloudBender version is {_min_version}, but we are {__version__}!"
