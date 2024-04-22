@@ -444,7 +444,13 @@ def _provision(cb, stacks):
     """Utility function to reuse code between tasks"""
     for step in sort_stacks(cb, stacks):
         if step:
-            with ThreadPoolExecutor(max_workers=len(step)) as group:
+            # Pulumi is still not thread safe
+            if _anyPulumi(step):
+                _threads = 1
+            else
+                _threads = len(step)
+
+            with ThreadPoolExecutor(max_workers=_threads)) as group:
                 futures = []
                 for stack in step:
                     if stack.mode != "pulumi":
