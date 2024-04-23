@@ -447,10 +447,10 @@ def _provision(cb, stacks):
             # Pulumi is still not thread safe
             if _anyPulumi(step):
                 _threads = 1
-            else
+            else:
                 _threads = len(step)
 
-            with ThreadPoolExecutor(max_workers=_threads)) as group:
+            with ThreadPoolExecutor(max_workers=_threads) as group:
                 futures = []
                 for stack in step:
                     if stack.mode != "pulumi":
