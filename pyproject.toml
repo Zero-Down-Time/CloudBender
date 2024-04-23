@@ -13,17 +13,17 @@ readme = "README.md"
 license = "AGPL-3.0-or-later"
 requires-python = ">=3.9"
 dependencies = [
-        "boto3==1.34.88",
+        "boto3==1.34.89",
         "mock==5.1.0",
         "Jinja2==3.1.3",
         "click==8.1.7",
         "pexpect==4.9.0",
         "python-minifier==2.9.0",
-        "cfn-lint==0.86.3",
+        "cfn-lint==0.86.4",
         "ruamel.yaml==0.18.6",
         "pulumi==3.113.3",
         "pulumi-aws==6.32.0",
-        "pulumi-aws-native==0.102.0",
+        "pulumi-aws-native==0.103.0",
         "pulumi-policy==1.11.0",
         "pulumi-command==0.10.0",
         ]
