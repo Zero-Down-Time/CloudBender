@@ -46,7 +46,7 @@ test:: ## test built artificats
 
 scan: ## Scan image using trivy
 	echo "Scanning $(IMAGE):$(TAG)-$(_ARCH) using Trivy $(TRIVY_REMOTE)"
-	trivy image $(TRIVY_OPTS) --quiet --no-progress localhost/$(IMAGE):$(TAG)-$(_ARCH)
+	trivy image $(TRIVY_OPTS) --quiet --no-progress --ignorefile ./.trivyignore.yaml localhost/$(IMAGE):$(TAG)-$(_ARCH)
 
 # first tag and push all actual images
 # create new manifest for each tag and add all available TAG-ARCH before pushing
