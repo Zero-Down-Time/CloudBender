@@ -1,0 +1,7 @@
+secrets:
+  - id: gcp-service-account
+    paths:
+      - "/venv/lib/python*/site-packages/pulumi_aws/glue/connection.py"
+  - id: private-key
+    paths:
+      - "/venv/lib/python*/site-packages/pulumi_aws/glue/connection.py"
