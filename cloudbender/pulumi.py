@@ -57,6 +57,8 @@ def pulumi_ws(func):
             self.work_dir = tempfile.mkdtemp(
                 dir=tempfile.gettempdir(), prefix="cloudbender-"
             )
+            cwd = os.getcwd()
+            os.chdir(self.work_dir)
 
             # add all artifact_paths/pulumi to the search path for easier
             # imports in the pulumi code
@@ -146,7 +148,8 @@ def pulumi_ws(func):
             try:
                 _min_version = self._pulumi_code.MIN_CLOUDBENDER_VERSION
                 if semver.compare(
-                        semver.Version.parse(__version__.strip("v")).finalize_version(),
+                        semver.Version.parse(
+                            __version__.strip("v")).finalize_version(),
                         _min_version.strip("v")) < 0:
                     raise ValueError(
                         f"Minimal required CloudBender version is {_min_version}, but we are {__version__}!"
@@ -189,7 +192,7 @@ def pulumi_ws(func):
             )
 
             project_settings = pulumi.automation.ProjectSettings(
-                name=project_name, runtime="python", backend={"url": pulumi_backend}
+                name=project_name, runtime="python", backend=pulumi.automation.ProjectBackend(url=pulumi_backend)
             )
 
             self.pulumi_ws_opts = pulumi.automation.LocalWorkspaceOptions(
@@ -202,6 +205,9 @@ def pulumi_ws(func):
         response = func(self, *args, **kwargs)
 
         # Cleanup temp workspace
+        if cwd:
+            os.chdir(cwd)
+
         if self.work_dir and os.path.exists(self.work_dir):
             shutil.rmtree(self.work_dir)
 

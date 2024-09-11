@@ -535,7 +535,6 @@ class Stack(object):
             logger.info("Passed.")
             return 0
 
-    @pulumi_ws
     def get_outputs(self, include=".*", values=False):
         """gets outputs of the stack"""
 
@@ -852,6 +851,7 @@ class Stack(object):
 
         return status
 
+    @pulumi_ws
     @exec_hooks
     def update(self):
         """Updates an existing stack"""
@@ -1305,7 +1305,6 @@ class Stack(object):
             logger.info(" ".join([self.region, self.stackname, text]))
 
     def _get_pulumi_stack(self, create=False):
-
         if create:
             pulumi_stack = pulumi.automation.create_or_select_stack(
                 stack_name=self.pulumi_stackname,
