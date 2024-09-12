@@ -52,6 +52,7 @@ def resolve_outputs(outputs):
 def pulumi_ws(func):
     @wraps(func)
     def decorated(self, *args, **kwargs):
+        cwd = None
         # setup temp workspace
         if self.mode == "pulumi":
             self.work_dir = tempfile.mkdtemp(
