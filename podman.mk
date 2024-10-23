@@ -73,8 +73,10 @@ rm-remote-untagged: ## delete all remote untagged and in-dev images, keep 10 tag
 clean:: ## clean up source folder
 
 rm-image:
-	test -z "$$(podman image ls -q $(IMAGE):$(TAG)-$(_ARCH))" || podman image rm -f $(IMAGE):$(TAG)-$(_ARCH) > /dev/null
-	test -z "$$(podman image ls -q $(IMAGE):$(TAG)-$(_ARCH))" || echo "Error: Removing image failed"
+	for t in $(TAG) latest $(EXTRA_TAGS); do \
+		test -z "$$(podman image ls -q $(IMAGE):$${t}-$(_ARCH))" || podman image rm -f $(IMAGE):$${t}-$(_ARCH); \
+		test -z "$$(podman image ls -q $(IMAGE):$${t})" || podman image rm -f $(IMAGE):$${t}; \
+	done
 
 ## some useful tasks during development
 ci-pull-upstream: ## pull latest shared .ci subtree
