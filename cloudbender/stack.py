@@ -8,7 +8,6 @@ import pathlib
 import pprint
 import pulumi
 import importlib
-import pkg_resources
 
 from datetime import datetime, timedelta
 from dateutil.tz import tzutc
@@ -1313,7 +1312,7 @@ class Stack(object):
                 opts=self.pulumi_ws_opts,
             )
             pulumi_stack.workspace.install_plugin(
-                "aws", pkg_resources.get_distribution("pulumi_aws").version
+                "aws", importlib.metadata.Distribution("pulumi_aws").version
             )
 
         else:
