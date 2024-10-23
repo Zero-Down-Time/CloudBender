@@ -1312,7 +1312,7 @@ class Stack(object):
                 opts=self.pulumi_ws_opts,
             )
             pulumi_stack.workspace.install_plugin(
-                "aws", importlib.metadata.Distribution("pulumi_aws").version
+                "aws", importlib.metadata.version("pulumi_aws")
             )
 
         else:
