@@ -26,6 +26,7 @@ dependencies = [
         "pulumi-aws-native==0.103.0",
         "pulumi-policy==1.11.0",
         "pulumi-command==0.10.0",
+        "pulumi_random==4.16.6",
         ]
 
 classifiers = [

@@ -1059,11 +1059,18 @@ class Stack(object):
 
             if "parameters" not in settings:
                 settings["parameters"] = {}
+
             # hack for bug above, we support one level of nested values for now
             _val = pulumi_settings["config"]["{}:{}".format(
                 self.parameters["Conglomerate"], key)]
             if '.' in key:
-                (root, leaf) = key.split('.')
+                try:
+                    (root, leaf) = key.split('.')
+                except ValueError as e:
+                    raise ParameterIllegalValue(
+                      "Currently only one level hierachies within parameters are supported!"
+                    )
+
                 if root not in settings["parameters"]:
                     settings["parameters"][root] = {}
 
