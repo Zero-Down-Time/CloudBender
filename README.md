@@ -1,21 +1,21 @@
-# ![Logo](https://git.zero-downtime.net/ZeroDownTime/CloudBender/media/branch/master/cloudbender.png) CloudBender
+# ![Logo](https://git.zero-downtime.net/ZeroDownTime/CloudBender/media/branch/main/cloudbender.png) CloudBender
 
 # About
 
-Toolset to deploy and maintain infrastructure in automated and trackable manner.  
-First class support for:  
+Toolset to deploy and maintain infrastructure in automated and trackable manner.
+First class support for:
 - [Pulumi](https://www.pulumi.com/docs/)
 - [AWS CloudFormation](https://aws.amazon.com/cloudformation)
 
 
 # Installation
-The preferred way of running CloudBender is using the public container. This ensure all tools and dependencies are in sync and underwent some basic testing during the development and build phase.  
+The preferred way of running CloudBender is using the public container. This ensure all tools and dependencies are in sync and underwent some basic testing during the development and build phase.
 
 As a fall back CloudBender and its dependencies can be installed locally see step *1b* below.
 
 ## 1a. Containerized
 
-The command below tests the ability to run containers within containers on your local setup.  
+The command below tests the ability to run containers within containers on your local setup.
 ( This most likely only works on a recent Linux box/VM, which is capable of running rootless containers within containers.
 Requires kernel >= 5.12, Cgroups V2, podman, ... )
 
@@ -36,7 +36,7 @@ and proceed with step 2)
 - either `podman` or `docker` depending on your platform
 
 ## 2. Test cli
-To verify that all pieces are in place run:  
+To verify that all pieces are in place run:
 ```
 cloudbender version
 ```
@@ -84,10 +84,10 @@ Commands:
 The state for all Pulumi resources are stored on S3 in your account and in the same region as the resources being deployed.
 No data is send to nor shared with the official Pulumi provided APIs.
 
-CloudBender configures Pulumi with a local, temporary workspace on the fly. This incl. the injection of various common parameters like the AWS account ID and region etc.  
+CloudBender configures Pulumi with a local, temporary workspace on the fly. This incl. the injection of various common parameters like the AWS account ID and region etc.
 
 ### Cloudformation
-All state is handled by AWS Cloudformation.  
+All state is handled by AWS Cloudformation.
 The required account and region are determined by CloudBender automatically from the configuration.
 
 
