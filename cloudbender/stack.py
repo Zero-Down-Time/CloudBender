@@ -1066,7 +1066,7 @@ class Stack(object):
             if '.' in key:
                 try:
                     (root, leaf) = key.split('.')
-                except ValueError as e:
+                except ValueError:
                     raise ParameterIllegalValue(
                       "Currently only one level hierachies within parameters are supported!"
                     )
