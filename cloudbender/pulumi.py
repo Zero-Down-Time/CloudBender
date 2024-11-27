@@ -189,7 +189,7 @@ def pulumi_ws(func):
             )
 
             project_settings = pulumi.automation.ProjectSettings(
-                name=project_name, runtime="python", backend={"url": pulumi_backend}
+                name=project_name, runtime="python", backend=pulumi.automation.ProjectBackend(url=pulumi_backend)
             )
 
             self.pulumi_ws_opts = pulumi.automation.LocalWorkspaceOptions(
