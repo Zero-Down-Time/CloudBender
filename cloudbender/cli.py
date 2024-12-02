@@ -224,7 +224,7 @@ def _import(cb, stack_name, pulumi_state_file):
         if s.mode == "pulumi":
             s._import(pulumi_state_file)
         else:
-            logger.info("{} uses Cloudformation, export skipped.".format(s.stackname))
+            logger.info("Cannot import as {} uses Cloudformation.".format(s.stackname))
 
 
 @click.command()
