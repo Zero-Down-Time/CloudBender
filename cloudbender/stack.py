@@ -1025,6 +1025,19 @@ class Stack(object):
         return
 
     @pulumi_ws
+    def _import(self, pulumi_state_file):
+        """Imports a Pulumi stack"""
+
+        pulumi_stack = self._get_pulumi_stack()
+
+        with open(pulumi_state_file, "r") as file:
+            state = json.loads(file.read())
+            deployment = pulumi.automation.Deployment(version=3, deployment=state)
+            pulumi_stack.import_stack(deployment)
+
+        return
+
+    @pulumi_ws
     def set_config(self, key, value, secret):
         """Set a config or secret"""
 

@@ -212,6 +212,21 @@ def execute(cb, stack_name, function, args):
             )
 
 
+@click.command('import')
+@click.argument("stack_name")
+@click.argument("pulumi_state_file")
+@click.pass_obj
+def _import(cb, stack_name, pulumi_state_file):
+    """Imports a Pulumi state file as stack"""
+    stacks = _find_stacks(cb, [stack_name])
+
+    for s in stacks:
+        if s.mode == "pulumi":
+            s._import(pulumi_state_file)
+        else:
+            logger.info("{} uses Cloudformation, export skipped.".format(s.stackname))
+
+
 @click.command()
 @click.argument("stack_name")
 @click.option(
@@ -482,6 +497,7 @@ cli.add_command(refresh)
 cli.add_command(preview)
 cli.add_command(set_config)
 cli.add_command(get_config)
+cli.add_command(_import)
 cli.add_command(export)
 cli.add_command(assimilate)
 cli.add_command(execute)
