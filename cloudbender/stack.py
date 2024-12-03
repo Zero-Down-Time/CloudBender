@@ -987,7 +987,7 @@ class Stack(object):
     def assimilate(self):
         """Import resources into Pulumi stack"""
 
-        pulumi_stack = self._get_pulumi_stack(create=True)
+        pulumi_stack = self._get_pulumi_stack()
 
         # now lets import each defined resource
         for r in self._pulumi_code.RESOURCES:

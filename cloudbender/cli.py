@@ -55,12 +55,13 @@ def cli(ctx, profile, region, debug, directory):
         sys.exit(1)
 
     # Only load stackgroups to get profile and region
-    if ctx.invoked_subcommand == "wrap":
+    if ctx.invoked_subcommand in ["wrap", "list_stacks"]:
         cb.read_config(loadStacks=False)
     else:
         cb.read_config()
 
-    cb.dump_config()
+    if debug:
+        cb.dump_config()
 
     ctx.obj = cb
 
@@ -349,7 +350,16 @@ def wrap(cb, stack_group, cmd):
     """Execute custom external program"""
 
     sg = cb.sg.get_stackgroup(stack_group)
-    cb.wrap(sg, " ".join(cmd))
+    sg.wrap(" ".join(cmd))
+
+
+@click.command()
+@click.argument("stack_group", nargs=1, required=True)
+@click.pass_obj
+def list_stacks(cb, stack_group):
+    """List all Pulumi stacks"""
+    sg = cb.sg.get_stackgroup(stack_group)
+    sg.list_stacks()
 
 
 @click.command()
@@ -499,6 +509,7 @@ cli.add_command(set_config)
 cli.add_command(get_config)
 cli.add_command(_import)
 cli.add_command(export)
+cli.add_command(list_stacks)
 cli.add_command(assimilate)
 cli.add_command(execute)
 cli.add_command(wrap)
