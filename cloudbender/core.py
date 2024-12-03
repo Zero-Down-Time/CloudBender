@@ -1,9 +1,7 @@
 import pathlib
 import logging
-import pexpect
 
 from .stackgroup import StackGroup
-from .connection import BotoConnection
 from .jinja import read_config_file
 from .exceptions import InvalidProjectDir
 
@@ -133,17 +131,3 @@ class CloudBender(object):
                 matching_stacks.append(s)
 
         return matching_stacks
-
-    def wrap(self, stack_group, cmd):
-        """
-        Set AWS environment based on profile before executing a custom command, eg. steampipe
-        """
-
-        profile = stack_group.config.get("profile", "default")
-        region = stack_group.config.get("region", "global")
-
-        connection_manager = BotoConnection(profile, region)
-        connection_manager.exportProfileEnv()
-
-        child = pexpect.spawn(cmd)
-        child.interact()

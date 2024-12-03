@@ -1,6 +1,13 @@
 import logging
 import pprint
+import pexpect
+import pulumi
+import tempfile
 
+import rich.table
+import rich.console
+
+from .connection import BotoConnection
 from .utils import dict_merge
 from .jinja import read_config_file
 from .stack import Stack
@@ -25,7 +32,7 @@ class StackGroup(object):
         for sg in self.sgs:
             sg.dump_config()
 
-        logger.debug(
+        logger.info(
             "StackGroup {}: {}".format(self.rel_path, pprint.pformat(self.config))
         )
 
@@ -135,3 +142,54 @@ class StackGroup(object):
                 return s
 
         return None
+
+    def wrap(self, cmd):
+        """
+        Set AWS environment based on profile before executing a custom command, eg. steampipe
+        """
+
+        profile = self.config.get("profile", "default")
+        region = self.config.get("region", "global")
+
+        connection_manager = BotoConnection(profile, region)
+        connection_manager.exportProfileEnv()
+
+        child = pexpect.spawn(cmd)
+        child.interact()
+
+    def list_stacks(self):
+        project_name = self.config["parameters"]["Conglomerate"]
+        pulumi_backend = "{}/{}/{}".format(self.config["pulumi"]["backend"], project_name, self.config["region"])
+
+        project_settings = pulumi.automation.ProjectSettings(
+            name=project_name, runtime="python", backend=pulumi.automation.ProjectBackend(url=pulumi_backend)
+        )
+
+        work_dir = tempfile.mkdtemp(
+            dir=tempfile.gettempdir(), prefix="cloudbender-"
+        )
+
+        # AWS setup
+        profile = self.config.get("profile", "default")
+        region = self.config.get("region", "global")
+
+        connection_manager = BotoConnection(profile, region)
+        connection_manager.exportProfileEnv()
+
+        pulumi_workspace = pulumi.automation.LocalWorkspace(
+            work_dir=work_dir,
+            project_settings=project_settings
+        )
+
+        stacks = pulumi_workspace.list_stacks()
+
+        table = rich.table.Table(title="Pulumi stacks")
+        table.add_column("Name")
+        table.add_column("Last Update")
+        table.add_column("Resources")
+
+        for s in stacks:
+            table.add_row(s.name, str(s.last_update), str(s.resource_count))
+
+        console = rich.console.Console()
+        console.print(table)

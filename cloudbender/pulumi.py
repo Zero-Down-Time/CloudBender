@@ -199,6 +199,8 @@ def pulumi_ws(func):
                 secrets_provider=secrets_provider,
             )
 
+            # self.pulumi_workspace = pulumi.automation.LocalWorkspace(self.pulumi_ws_opts)
+
         response = func(self, *args, **kwargs)
 
         # Cleanup temp workspace
