@@ -8,8 +8,8 @@ SHELL := bash
 .PHONY: all # All targets are accessible for user
 .DEFAULT: help # Running Make will run the help target
 
-# Parse version from latest git semver tag
-GIT_TAG ?= $(shell git describe --tags --match v*.*.* 2>/dev/null || git rev-parse --short HEAD 2>/dev/null)
+# Parse version from latest git semver tag, use short commit otherwise
+GIT_TAG ?= $(shell git describe --tags --match v*.*.* --dirty 2>/dev/null || git describe --match="" --always --dirty 2>/dev/null)
 GIT_BRANCH ?= $(shell git rev-parse --abbrev-ref HEAD 2>/dev/null)
 
 TAG ::= $(GIT_TAG)
@@ -49,7 +49,7 @@ test:: ## test built artificats
 
 scan: ## Scan image using trivy
 	echo "Scanning $(IMAGE):$(TAG)-$(_ARCH) using Trivy $(TRIVY_REMOTE)"
-	trivy image $(TRIVY_OPTS) --quiet --no-progress --ignorefile ./.trivyignore.yaml localhost/$(IMAGE):$(TAG)-$(_ARCH)
+	trivy image $(TRIVY_OPTS) --quiet --no-progress localhost/$(IMAGE):$(TAG)-$(_ARCH)
 
 # first tag and push all actual images
 # create new manifest for each tag and add all available TAG-ARCH before pushing
