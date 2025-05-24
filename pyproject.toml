@@ -21,7 +21,7 @@ dependencies = [
         "python-minifier==2.11.3",
         "cfn-lint==1.35.3",
         "ruamel.yaml==0.18.10",
-        "rich==13.9.4",
+        "rich==14.0.0",
         "pulumi==3.171.0",
         "pulumi-aws==6.81.0",
         "pulumi-aws-native==1.28.0",
