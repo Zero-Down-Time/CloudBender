@@ -1,8 +1,0 @@
-secrets:
-  - id: private-key
-    paths:
-      - "**/pulumi_aws/glue/connection.py"
-  - id: gcp-service-account
-    paths:
-      - "**/pulumi_aws/glue/connection.py"
-
