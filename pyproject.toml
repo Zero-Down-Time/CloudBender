@@ -18,7 +18,7 @@ dependencies = [
         "Jinja2==3.1.6",
         "click==8.2.1",
         "pexpect==4.9.0",
-        "python-minifier==2.11.3",
+        "python-minifier==3.1.0",
         "cfn-lint==1.36.1",
         "ruamel.yaml==0.18.14",
         "rich==14.0.0",
