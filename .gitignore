@@ -58,3 +58,5 @@ coverage.xml
 # virtualenv
 venv/
 ENV/
+
+cloudbender/_version.py
