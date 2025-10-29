@@ -29,6 +29,7 @@ ARCH ::= amd64
 ALL_ARCHS ::= amd64 arm64
 _ARCH = $(or $(filter $(ARCH),$(ALL_ARCHS)),$(error $$ARCH [$(ARCH)] must be exactly one of "$(ALL_ARCHS)"))
 
+
 help: ## Show Help
 	grep -E '^[a-zA-Z_-]+:.*?## .*$$' .ci/podman.mk | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
