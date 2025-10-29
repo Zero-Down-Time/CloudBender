@@ -25,6 +25,12 @@ def call(Map config=[:]) {
           }
         }
 
+        stage('Lint') {
+          steps {
+            sh 'make lint'
+          }
+        }
+
         // Build using rootless podman
         stage('Build') {
           steps {
