@@ -40,7 +40,7 @@ classifiers = [
 
 [project.optional-dependencies]
 tests = [
-  'flake',
+  'flake8',
   'pytest',
   'twine',
 ]

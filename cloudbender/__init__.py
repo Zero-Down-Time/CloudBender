@@ -7,6 +7,8 @@ __version__ = "{}.{}.{}-{}.{}".format(*__version_tuple__)
 
 # Set up logging to ``/dev/null`` like a library is supposed to.
 # http://docs.python.org/3.3/howto/logging.html#configuring-logging-for-a-library
+
+
 class NullHandler(logging.Handler):  # pragma: no cover
     def emit(self, record):
         pass
