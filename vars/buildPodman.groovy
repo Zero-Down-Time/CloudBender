@@ -13,14 +13,16 @@ def call(Map config=[:]) {
       stages {
         stage('Prepare') {
           steps {
-            sh 'mkdir -p reports'
+            // create list of changed files
+            script {
+              def files = gitea.getChangeset(
+                debug: config.debug ?: false
+              )
+              echo "Changed: ${files.join(', ')}"
+            }
 
-            // we set pull tags as project adv. options
-            // pull tags
-            //withCredentials([gitUsernamePassword(credentialsId: 'gitea-jenkins-user')]) {
-            //  sh 'git fetch -q --tags ${GIT_URL}'
-            //}
             // Optional project specific preparations
+            sh 'mkdir -p reports'
             sh 'make prepare'
           }
         }
@@ -44,7 +46,7 @@ def call(Map config=[:]) {
           }
         }
 
-        // Scan via trivy
+        // Scan using grype
         stage('Scan') {
           steps {
             // we always scan and create the full json report
