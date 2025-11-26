@@ -44,13 +44,15 @@ class BotoConnection:
     def _get_client(self, service, profile=None, region=None):
         if clients.get((profile, region, service)):
             logger.debug(
-                "Reusing boto session for {} {} {}".format(profile, region, service)
+                "Reusing boto session for {} {} {}".format(
+                    profile, region, service)
             )
             return clients[(profile, region, service)]
 
         session = self._get_session(profile, region)
         client = boto3.Session(botocore_session=session).client(service)
-        logger.debug("New boto session for {} {} {}".format(profile, region, service))
+        logger.debug("New boto session for {} {} {}".format(
+            profile, region, service))
 
         clients[(profile, region, service)] = client
         return client
@@ -80,7 +82,8 @@ class BotoConnection:
         same profile, region. Eg. Pulumi or Steampipe
         """
 
-        credentials = self._get_session(self.profile, self.region).get_credentials()
+        credentials = self._get_session(
+            self.profile, self.region).get_credentials()
 
         if credentials.token:
             os.environ["AWS_SESSION_TOKEN"] = credentials.token

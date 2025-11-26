@@ -27,10 +27,12 @@ class CloudBender(object):
         }
 
         if profile:
-            logger.info("Profile overwrite: using {}".format(self.ctx["profile"]))
+            logger.info("Profile overwrite: using {}".format(
+                self.ctx["profile"]))
 
         if region:
-            logger.info("Region overwrite: using {}".format(self.ctx["region"]))
+            logger.info("Region overwrite: using {}".format(
+                self.ctx["region"]))
 
         if not self.ctx["config_path"].is_dir():
             raise InvalidProjectDir(
@@ -43,7 +45,8 @@ class CloudBender(object):
         """Load the <path>/config.yaml, <path>/*.yaml as stacks, sub-folders are sub-groups"""
 
         # Read top level config.yaml and extract CloudBender CTX
-        _config = read_config_file(self.ctx["config_path"].joinpath("config.yaml"))
+        _config = read_config_file(
+            self.ctx["config_path"].joinpath("config.yaml"))
 
         # Legacy naming
         if _config and _config.get("CloudBender"):

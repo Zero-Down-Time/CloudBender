@@ -1032,7 +1032,8 @@ class Stack(object):
 
         with open(pulumi_state_file, "r") as file:
             state = json.loads(file.read())
-            deployment = pulumi.automation.Deployment(version=3, deployment=state)
+            deployment = pulumi.automation.Deployment(
+                version=3, deployment=state)
             pulumi_stack.import_stack(deployment)
 
         return
@@ -1080,7 +1081,7 @@ class Stack(object):
                     (root, leaf) = key.split('.')
                 except ValueError:
                     raise ParameterIllegalValue(
-                      "Currently only one level hierachies within parameters are supported!"
+                        "Currently only one level hierachies within parameters are supported!"
                     )
 
                 if root not in settings["parameters"]:

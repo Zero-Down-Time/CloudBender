@@ -33,7 +33,8 @@ class StackGroup(object):
             sg.dump_config()
 
         logger.info(
-            "StackGroup {}: {}".format(self.rel_path, pprint.pformat(self.config))
+            "StackGroup {}: {}".format(
+                self.rel_path, pprint.pformat(self.config))
         )
 
         for s in self.stacks:
@@ -45,7 +46,8 @@ class StackGroup(object):
 
         # First read config.yaml if present
         _config = read_config_file(
-            self.path.joinpath("config.yaml"), parent_config.get("variables", {})
+            self.path.joinpath("config.yaml"), parent_config.get(
+                "variables", {})
         )
 
         # Stack Group name if not explicit via config is derived from subfolder, or in case of root object the parent folder
@@ -99,7 +101,8 @@ class StackGroup(object):
         """Returns [stack] matching stack_name or [all]"""
         stacks = []
         if name:
-            logger.debug("Looking for stack {} in group {}".format(name, self.name))
+            logger.debug(
+                "Looking for stack {} in group {}".format(name, self.name))
 
         for s in self.stacks:
             if name:
@@ -111,7 +114,8 @@ class StackGroup(object):
 
             if self.rel_path:
                 logger.debug(
-                    "Found stack {} in group {}".format(s.stackname, self.rel_path)
+                    "Found stack {} in group {}".format(
+                        s.stackname, self.rel_path)
                 )
             else:
                 logger.debug("Found stack {}".format(s.stackname))
@@ -133,7 +137,8 @@ class StackGroup(object):
 
         if name and name != "config":
             logger.debug(
-                "Looking for stack_group {} in group {}".format(name, self.name)
+                "Looking for stack_group {} in group {}".format(
+                    name, self.name)
             )
 
         for sg in self.sgs:
@@ -159,7 +164,8 @@ class StackGroup(object):
 
     def list_stacks(self):
         project_name = self.config["parameters"]["Conglomerate"]
-        pulumi_backend = "{}/{}/{}".format(self.config["pulumi"]["backend"], project_name, self.config["region"])
+        pulumi_backend = "{}/{}/{}".format(
+            self.config["pulumi"]["backend"], project_name, self.config["region"])
 
         project_settings = pulumi.automation.ProjectSettings(
             name=project_name, runtime="python", backend=pulumi.automation.ProjectBackend(url=pulumi_backend)

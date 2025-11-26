@@ -51,7 +51,8 @@ def include_raw_gz(context, files=None, gz=True, remove_comments=False):
     # For shell script we can even remove whitespaces so treat them individually
     # sed -e '2,$ {/^ *$/d ; /^ *#/d ; /^[ \t] *#/d ; /*^/d ; s/^[ \t]*// ; s/*[ \t]$// ; s/ $//}'
     for name in files:
-        output = output + markupsafe.Markup(jenv.loader.get_source(jenv, name)[0])
+        output = output + \
+            markupsafe.Markup(jenv.loader.get_source(jenv, name)[0])
 
     if remove_comments:
         # Remove full line comments but not shebang
@@ -81,7 +82,8 @@ def include_raw_gz(context, files=None, gz=True, remove_comments=False):
 
     # MaxSize is 21847
     logger.info(
-        "Compressed user-data from {} to {}".format(len(output), len(buf.getvalue()))
+        "Compressed user-data from {} to {}".format(
+            len(output), len(buf.getvalue()))
     )
     return base64.b64encode(buf.getvalue()).decode("utf-8")
 
@@ -127,11 +129,13 @@ def sub(value="", pattern="", replace="", ignorecase=False):
 
 
 def pyminify(source):
-    minified = python_minifier.awslambda(source, filename=None, entrypoint=None)
+    minified = python_minifier.awslambda(
+        source, filename=None, entrypoint=None)
     gz_source = gz_pack(minified)
 
     logger.info(
-        "Compressed python code from {} to {}".format(len(source), len(gz_source))
+        "Compressed python code from {} to {}".format(
+            len(source), len(gz_source))
     )
     return gz_source
 
@@ -168,7 +172,8 @@ def inline_yaml(block):
 
 
 def JinjaEnv(template_locations=[]):
-    LoggingUndefined = jinja2.make_logging_undefined(logger=logger, base=Undefined)
+    LoggingUndefined = jinja2.make_logging_undefined(
+        logger=logger, base=Undefined)
     jenv = jinja2.Environment(
         trim_blocks=True,
         lstrip_blocks=True,
@@ -234,7 +239,8 @@ def read_config_file(path, variables={}):
                 return data
 
         except Exception as e:
-            logger.exception("Error reading config file: {} ({})".format(path, e))
+            logger.exception(
+                "Error reading config file: {} ({})".format(path, e))
             sys.exit(1)
 
     return {}

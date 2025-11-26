@@ -188,7 +188,8 @@ def refresh(cb, stack_name):
         if s.mode == "pulumi":
             s.refresh()
         else:
-            logger.info("{} uses Cloudformation, refresh skipped.".format(s.stackname))
+            logger.info(
+                "{} uses Cloudformation, refresh skipped.".format(s.stackname))
 
 
 @click.command()
@@ -225,7 +226,8 @@ def _import(cb, stack_name, pulumi_state_file):
         if s.mode == "pulumi":
             s._import(pulumi_state_file)
         else:
-            logger.info("Cannot import as {} uses Cloudformation.".format(s.stackname))
+            logger.info(
+                "Cannot import as {} uses Cloudformation.".format(s.stackname))
 
 
 @click.command()
@@ -245,7 +247,8 @@ def export(cb, stack_name, remove_pending_operations=False):
         if s.mode == "pulumi":
             s.export(remove_pending_operations)
         else:
-            logger.info("{} uses Cloudformation, export skipped.".format(s.stackname))
+            logger.info(
+                "{} uses Cloudformation, export skipped.".format(s.stackname))
 
 
 @click.command()
@@ -260,7 +263,8 @@ def assimilate(cb, stack_name):
             s.assimilate()
         else:
             logger.info(
-                "{} uses Cloudformation, cannot assimilate.".format(s.stackname)
+                "{} uses Cloudformation, cannot assimilate.".format(
+                    s.stackname)
             )
 
 
@@ -441,7 +445,8 @@ def _find_stacks(cb, stack_names, multi=False):
         raise click.Abort()
 
     if not stacks:
-        logger.error("Cannot find stack matching: {}".format(", ".join(stack_names)))
+        logger.error("Cannot find stack matching: {}".format(
+            ", ".join(stack_names)))
         raise click.Abort()
 
     return stacks
