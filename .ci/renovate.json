@@ -1,0 +1,13 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":label(renovate)",
+    ":semanticCommits",
+    "group:allNonMajor"
+  ],
+  "prHourlyLimit": 0,
+  "ignorePaths": [
+    ".ci/**"
+  ]
+}

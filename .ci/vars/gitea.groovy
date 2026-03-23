@@ -64,6 +64,10 @@ def getChangeset(Map config = [:]) {
         }
     }
 
+    if (debug) {
+        echo("Changeset: " + changedFiles.join(' '))
+    }
+
     return changedFiles
 }
 
@@ -169,18 +173,17 @@ def getCommitFiles(String giteaUrl, String token, String owner, String repo, Str
 }
 
 /**
- * Filter changeset by pattern
+ * Check if specific paths changed,
+ * expects: [files], [patterns]
  */
-def filterChangeset(List files, String pattern) {
-    return files.findAll { it =~ pattern }
-}
+def pathsChanged(Map parameters = [:]) {
+    if (parameters.debug) {
+        echo("Patterns: " + parameters.patterns.join(', '))
+        echo("ChangeSet: " + writeJSON(returnText: true, json: parameters.files))
+    }
 
-/**
- * Check if specific paths changed
- */
-def pathsChanged(List files, List patterns) {
-    return patterns.any { pattern ->
-        files.any { file -> file =~ pattern }
+    return parameters.patterns.any { pattern ->
+       parameters.files.any { file -> file =~ pattern }
     }
 }
 
