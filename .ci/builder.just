@@ -1,15 +1,17 @@
+set allow-duplicate-variables
 set dotenv-load
 
-update-builder target="rust":
-  podman build -t local-podman-builder -f .ci/Dockerfile.{{ target }}
+toolchain := "rust"
 
-_builder:
-  #!/usr/bin/env sh
-  builder=$(buildah containers --json | jq -r '.[] | select(.imagename == "localhost/local-podman-builder:latest") | .id' 2>/dev/null)
-  [ -z "$builder" -o "$builder" == "null" ] && builder=$(buildah from localhost/local-podman-builder:latest)
-  echo $builder > .ci/.builder.id
+update-builder:
+  podman build -t local-{{ toolchain }}-builder -f .ci/Dockerfile.{{ toolchain }}
 
 # runs available just targets inside the builder
 [no-exit-message]
-use-builder +target: _builder
-  buildah run -v $(pwd):/app $(cat .ci/.builder.id) -- just {{ target }}
+use-builder +target:
+  #!/usr/bin/env bash
+  set -eo pipefail
+  builder=$(buildah containers --json | jq -r '.[] | select(.imagename == "localhost/local-{{ toolchain }}-builder:latest") | .id' 2>/dev/null)
+  [ -z "$builder" -o "$builder" == "null" ] && builder=$(buildah from localhost/local-{{ toolchain }}-builder:latest)
+  trap "buildah rm $builder > /dev/null" EXIT
+  buildah run -v $(pwd):/app $builder -- just {{ target }}
