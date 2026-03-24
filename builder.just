@@ -10,7 +10,6 @@ update-builder:
 [no-exit-message]
 use-builder +target:
   #!/usr/bin/env bash
-  set -eo pipefail
   builder=$(buildah containers --json | jq -r '.[] | select(.imagename == "localhost/local-{{ toolchain }}-builder:latest") | .id' 2>/dev/null)
   [ -z "$builder" -o "$builder" == "null" ] && builder=$(buildah from localhost/local-{{ toolchain }}-builder:latest)
   trap "buildah rm $builder > /dev/null" EXIT

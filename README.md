@@ -1,109 +1,130 @@
-# ![Logo](https://git.zero-downtime.net/ZeroDownTime/CloudBender/media/branch/main/cloudbender.png) CloudBender
+# ci-tools-lib
 
-# About
+Various toolchain bits and pieces shared between projects — a shared CI/CD toolchain library for building, testing, scanning, and publishing containerized applications using Podman, Jenkins, and AWS ECR.
 
-Toolset to deploy and maintain infrastructure in automated and trackable manner.
-First class support for:
-- [Pulumi](https://www.pulumi.com/docs/)
-- [AWS CloudFormation](https://aws.amazon.com/cloudformation)
+## Features
 
+- **Container Build Orchestration** — Podman-based rootless container builds with multi-architecture support (amd64, arm64)
+- **Jenkins Shared Libraries** — Reusable pipeline templates for Make and Just-based projects
+- **Gitea SCM Integration** — Native change detection via API for PR and commit changesets
+- **AWS ECR Public** — Registry login, push, manifest management, and automated image lifecycle cleanup
+- **Vulnerability Scanning** — Grype integration with configurable severity thresholds and JSON reporting
+- **Semantic Versioning** — Automatic version computation from git tags with branch suffix support
+- **Build Protection** — PR safety mechanism that overwrites build config files from the target branch
+- **Builder Containers** — Optional isolated build environments (e.g. Rust toolchain with sccache, cargo-deny, cargo-auditable)
 
-# Installation
-The preferred way of running CloudBender is using the public container. This ensure all tools and dependencies are in sync and underwent some basic testing during the development and build phase.
+## Quickstart
 
-As a fall back CloudBender and its dependencies can be installed locally see step *1b* below.
+### 1. Add as a git subtree
 
-## 1a. Containerized
-
-The command below tests the ability to run containers within containers on your local setup.
-( This most likely only works on a recent Linux box/VM, which is capable of running rootless containers within containers.
-Requires kernel >= 5.12, Cgroups V2, podman, ... )
-
-```
-podman run --rm -v .:/workspace -v $HOME/.aws/config:/workspace/.aws/config public.ecr.aws/zero-downtime/cloudbender:latest podman run -q --rm docker.io/busybox:latest echo "Rootless container inception works!"
+```bash
+git subtree add --prefix .ci https://git.zero-downtime.net/ZeroDownTime/ci-tools-lib.git main --squash
 ```
 
-if you get `Rootless container inception works!`, add an alias to your environment, eg:
+### 2. Configure your project
 
-```
-alias cloudbender="podman run --rm -v .:/workspace -v $HOME/.aws/config:/home/cloudbender/.aws/config public.ecr.aws/zero-downtime/cloudbender:latest cloudbender"
-```
-and proceed with step 2)
+**Using Make** — Create a top-level `Makefile`:
 
-## 1b. Local install
-- `pip3 install -U cloudbender`
-- `curl -fsSL https://get.pulumi.com | sh`  (official [Docs](https://www.pulumi.com/docs/get-started/install/))
-- either `podman` or `docker` depending on your platform
+```makefile
+REGISTRY := <your-registry>
+IMAGE := <image_name>
+REGION := <AWS region of your registry>
 
-## 2. Test cli
-To verify that all pieces are in place run:
-```
-cloudbender version
-```
-which should get you something like:
-```
-[2022-06-28 16:06:24] CloudBender: 0.13.5
-[2022-06-28 16:06:24] Pulumi: v3.34.1
-[2022-06-28 16:06:24] Podman/Docker: podman version 4.1.0
+include .ci/podman.mk
 ```
 
-## CLI
+**Using Just** — Import the relevant `.just` modules in your `justfile`:
 
-```
-Usage: cloudbender [OPTIONS] COMMAND [ARGS]...
-
-Options:
-  --profile TEXT  Use named AWS .config profile, overwrites any stack config
-  --dir TEXT      Specify cloudbender project directory.
-  --debug         Turn on debug logging.
-  --help          Show this message and exit.
-
-Commands:
-  assimilate         Imports potentially existing resources into Pulumi...
-  clean              Deletes all previously rendered files locally
-  create-change-set  Creates a change set for an existing stack - CFN only
-  create-docs        Parses all documentation fragments out of rendered...
-  delete             Deletes stacks or stack groups
-  execute            Executes custom Python function within an existing...
-  export             Exports a Pulumi stack to repair state
-  get-config         Get a config value, decrypted if secret
-  outputs            Prints all stack outputs
-  preview            Preview of Pulumi stack up operation
-  provision          Creates or updates stacks or stack groups
-  refresh            Refreshes Pulumi stack / Drift detection
-  render             Renders template and its parameters - CFN only
-  set-config         Sets a config value, encrypts with stack key if secret
-  sync               Renders template and provisions it right away
-  validate           Validates already rendered templates using cfn-lint...
-  version            Displays own version and all dependencies
+```just
+import '.ci/container.just'
+import '.ci/rust.just'
+import '.ci/git.just'
 ```
 
-# Architecture
-## State management
-### Pulumi
-The state for all Pulumi resources are stored on S3 in your account and in the same region as the resources being deployed.
-No data is send to nor shared with the official Pulumi provided APIs.
+### 3. Integrate with Jenkins
 
-CloudBender configures Pulumi with a local, temporary workspace on the fly. This incl. the injection of various common parameters like the AWS account ID and region etc.
+Add a `Jenkinsfile` using the shared libraries:
 
-### Cloudformation
-All state is handled by AWS Cloudformation.
-The required account and region are determined by CloudBender automatically from the configuration.
+```groovy
+@Library('ci-tools-lib') _
 
+// Make-based projects
+buildPodman(
+  buildOnly: ['src/.*', 'Cargo.*'],
+)
 
-## Config management
-- Within the config folder each directory represents either a stack group if it has sub-directories, or an actual Cloudformation stack in case it is a leaf folder.
-- The actual configuration for each stack is hierachly merged. Lower level config files overwrite higher-level values. Complex data structures like dictionaries and arrays are deep merged.
+// Or Just-based projects
+justContainer(
+  buildOnly: ['src/.*', '.justfile'],
+  needBuilder: true,
+  imageName: 'my-app',
+)
+```
 
-## Secrets
+## Components
 
-### Pulumi
-CloudBender supports the native Pulumi secret handling.
-See [Pulumi Docs](https://www.pulumi.com/docs/intro/concepts/secrets/) for details.
+### Make — `podman.mk`
 
-### Cloudformation
-CloudBender supports [SOPS](https://github.com/mozilla/sops) to encrypt values in any config file.
+Common Makefile include providing standardized build targets:
 
-If a sops encrypted config file is detected by CloudBender, it will automatically try to decrypt the file. All required information to decrypt has to be present in the embedded sops config or set ahead of time via sops supported ENVIRONMENT variables.
+| Target                | Description                          |
+|-----------------------|--------------------------------------|
+| `make help`           | Show available targets               |
+| `make prepare`        | Custom pre-build preparation         |
+| `make fmt`            | Auto-format source code              |
+| `make lint`           | Lint source code                     |
+| `make build`          | Build container image                |
+| `make test`           | Test built artifacts                 |
+| `make scan`           | Scan image with Grype                |
+| `make push`           | Push image to registry               |
+| `make ecr-login`      | Login to AWS ECR                     |
+| `make rm-remote-untagged` | Cleanup untagged/dev images     |
+| `make create-repo`    | Create AWS ECR public repository     |
+| `make clean`          | Clean up build artifacts             |
+| `make ci-pull-upstream` | Pull latest `.ci` subtree          |
 
-SOPS support can be disabled by setting `DISABLE_SOPS` in order to reduce timeouts etc.
+### Just — `.just` modules
+
+| Module            | Key Recipes                                              |
+|-------------------|----------------------------------------------------------|
+| `container.just`  | `build`, `scan`, `push`, `ecr-login`, `clean`, manifest management |
+| `rust.just`       | `prepare`, `lint` (clippy + cargo-deny), `build`, `test`, version bumping |
+| `git.just`        | Version computation from tags, `tag-push`, legacy tag cleanup |
+| `builder.just`    | Builder container creation and execution via Buildah      |
+
+### Jenkins — Shared Libraries (`vars/`)
+
+| Library                  | Purpose                                              |
+|--------------------------|------------------------------------------------------|
+| `buildPodman.groovy`     | Full pipeline for Make-based container projects       |
+| `justContainer.groovy`   | Full pipeline for Just-based container projects       |
+| `gitea.groovy`           | Gitea API integration for change detection            |
+| `protectBuildFiles.groovy` | Overwrites CI files from target branch during PR builds |
+
+**Pipeline stages:** Prepare → Lint → Build → Test → Scan → Push → Cleanup
+
+### Utilities
+
+- **`ecr_public_lifecycle.py`** — Python utility (requires `boto3`) to manage ECR image lifecycle: removes untagged images, prunes old dev-tagged images, keeps a configurable number of recent tagged images.
+- **`utils.sh`** — Bash helpers for semantic version bumping (`bumpVersion`) and git commit/tag/push automation (`addCommitTagPush`).
+- **`Dockerfile.rust`** — Multi-stage Rust builder image (Alpine 3.23) with cargo, clippy, sccache, cargo-auditable, cargo-deny, and just.
+
+## Maintenance
+
+Pull the latest upstream changes into your project:
+
+```bash
+git subtree pull --prefix .ci https://git.zero-downtime.net/ZeroDownTime/ci-tools-lib.git main --squash
+```
+
+## Renovate
+
+Run renovate locally to test custom config:
+
+```bash
+LOG_LEVEL=debug ~/node_modules/renovate/dist/renovate.js --platform local --dry-run
+```
+
+## License
+
+[GNU AGPL v3](LICENSE)

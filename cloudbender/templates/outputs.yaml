@@ -1,6 +1,0 @@
-StackName: {{ stackname }}
-TimeStamp: {{ timestamp }}
-Outputs:
-{% for p in outputs %}
-  {{ p }}: {{ outputs[p] }}
-{% endfor %}
