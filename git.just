@@ -1,9 +1,9 @@
 ### Git 
 
 # Parse version from latest git semver tag, use short commit otherwise
-git_tag := `git describe --tags --match v*.*.* --dirty 2>/dev/null || git describe --match="" --always --dirty 2>/dev/null || echo "untagged"`
+git_tag := `(git describe --tags --match v*.*.* --dirty 2>/dev/null || git describe --match="" --always --dirty 2>/dev/null || echo "untagged") | tr '[:upper:]' '[:lower:]'`
 git_branch := `git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "HEAD"`
-git_repo_name := `basename -s .git $(git config --get remote.origin.url 2>/dev/null || echo "unknown")`
+git_repo_name := `basename -s .git $(git config --get remote.origin.url 2>/dev/null || echo "unknown") | tr '[:upper:]' '[:lower:]'`
 
 # Compute tag with branch suffix if needed
 tag := if git_branch =~ "^(main|master)$" {
