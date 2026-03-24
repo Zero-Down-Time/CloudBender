@@ -1,8 +1,8 @@
-ARG RUNTIME_VERSION="3.12"
-ARG DISTRO_VERSION="3.22"
+ARG RUNTIME_VERSION="3.13"
+ARG DISTRO_VERSION="3.23"
 
 FROM python:${RUNTIME_VERSION}-alpine${DISTRO_VERSION} AS builder
-ARG RUNTIME_VERSION="3.12"
+ARG RUNTIME_VERSION="3.13"
 
 RUN apk add --no-cache \
     autoconf \
@@ -49,9 +49,8 @@ RUN apk upgrade -U --available --no-cache && \
     libc6-compat \
     ca-certificates \
     aws-cli \
-    fuse-overlayfs \
     podman \
-    buildah \
+    passt \
     strace
 
 COPY --from=builder /venv /venv
@@ -75,7 +74,6 @@ RUN echo -e "$USER:1:999\n$USER:1001:64535" > /etc/subuid && \
 WORKDIR /workspace
 
 ENV _CONTAINERS_USERNS_CONFIGURED=""
-ENV BUILDAH_ISOLATION=chroot
 
 ENV VIRTUAL_ENV=/venv
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"

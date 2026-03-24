@@ -6,5 +6,8 @@
     ":semanticCommits",
     "group:allNonMajor"
   ],
-  "prHourlyLimit": 0
+  "prHourlyLimit": 0,
+  "ignorePaths": [
+    ".ci/**"
+  ]
 }
