@@ -15,7 +15,7 @@ test:
   uv run --extra dev pytest --log-cli-level=DEBUG
 
 clean:
-  rm -rf .pytest_cache dist
+  rm -rf .venv .pytest_cache dist
 
 test_upload:
 	uv publish --index testpypi --dry-run
