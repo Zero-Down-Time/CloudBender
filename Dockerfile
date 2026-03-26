@@ -16,20 +16,20 @@ RUN apk add --no-cache \
     linux-headers \
     libffi-dev \
     openssl-dev \
+    uv \
     git
 
 ENV VIRTUAL_ENV=/venv
-RUN python -m venv $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 ENV PYTHONPYCACHEPREFIX="$HOME/.cache/cpython/"
 
 # Install CloudBender
 WORKDIR /app
 COPY . /app
-RUN pip install . --disable-pip-version-check
+RUN uv venv $VIRTUAL_ENV && uv pip install .
 
 # Install matching Pulumi binaries
-RUN curl -fsSL https://get.pulumi.com/ | sh -s -- --version $(pip show pulumi --disable-pip-version-check | grep Version: | awk '{print $2}')
+RUN curl -fsSL https://get.pulumi.com/ | sh -s -- --version $(uv pip show pulumi | grep Version: | awk '{print $2}')
 
 # minimal pulumi
 RUN cd /root/.pulumi/bin && rm -f *dotnet *yaml *go *java && strip pulumi* || true
