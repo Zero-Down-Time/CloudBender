@@ -5,11 +5,12 @@ FROM alpine:${ALPINE_VERSION} as builder
 
 # build dependencies
 RUN apk add --no-cache \
-  uv \
   git \
   sccache \
   just \
-  openssl-dev
+  openssl-dev \
+  python3 \
+  uv
 
 ENV RUSTC_WRAPPER=/usr/bin/sccache
 
