@@ -5,11 +5,7 @@ FROM alpine:${ALPINE_VERSION} as builder
 
 # build dependencies
 RUN apk add --no-cache \
-  py3-hatchling \
-  py3-hatch-vcs \
-  py3-flake8 \
-  py3-pytest \
-  twine \
+  uv \
   git \
   sccache \
   just \
