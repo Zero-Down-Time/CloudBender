@@ -4,7 +4,7 @@ import 'git.just'
 prepare:
   cargo fetch
 
-lint: prepare
+lint:
   cargo clippy --workspace -r
   cargo deny check -s
 
@@ -12,7 +12,7 @@ fmt:
   cargo fmt
 
 # requires 1.45 [arg('target', pattern='(release)?')]
-build target="": prepare
+build target="":
   #!/usr/bin/env sh
   if [ "{{ target }}" == "release" ]; then
     cargo auditable build --locked --release
@@ -20,7 +20,7 @@ build target="": prepare
     cargo auditable build --locked
   fi
 
-test: build
+test:
   cargo test
 
 clean:
