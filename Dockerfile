@@ -1,60 +1,26 @@
-ARG RUNTIME_VERSION="3.13"
-ARG DISTRO_VERSION="3.23"
-
-FROM python:${RUNTIME_VERSION}-alpine${DISTRO_VERSION} AS builder
-ARG RUNTIME_VERSION="3.13"
-
-RUN apk add --no-cache \
-    autoconf \
-    automake \
-    build-base \
-    cmake \
-    curl \
-    make \
-    libc6-compat \
-    gcc \
-    linux-headers \
-    libffi-dev \
-    openssl-dev \
-    uv \
-    git
-
-ENV VIRTUAL_ENV=/venv
-ENV PATH="$VIRTUAL_ENV/bin:$PATH"
-ENV PYTHONPYCACHEPREFIX="$HOME/.cache/cpython/"
-
-# Install CloudBender
-WORKDIR /app
-COPY . /app
-RUN uv venv $VIRTUAL_ENV && uv pip install .
-
-# Install matching Pulumi binaries
-RUN curl -fsSL https://get.pulumi.com/ | sh -s -- --version $(uv pip show pulumi | grep Version: | awk '{print $2}')
-
-# minimal pulumi
-RUN cd /root/.pulumi/bin && rm -f *dotnet *yaml *go *java && strip pulumi* || true
-
-# Now build the final runtime, incl. running rootless containers
-FROM python:${RUNTIME_VERSION}-alpine${DISTRO_VERSION}
+FROM alpine:3.23
 
 ARG USER=cloudbender
 
-    #cd /etc/apk/keys && \
-    #echo "@testing http://dl-cdn.alpinelinux.org/alpine/edge/testing" >> /etc/apk/repositories && \
-    #cfssl@testing \
-
-RUN apk upgrade -U --available --no-cache && \
+RUN ALPINE_VERSION=$(. /etc/os-release && echo "$VERSION_ID" | cut -d. -f1,2) && \
+    cd /etc/apk/keys && \
+    wget "https://cdn.zero-downtime.net/alpine/stefan@zero-downtime.net-61bb6bfb.rsa.pub" && \
+    echo "@kubezero https://cdn.zero-downtime.net/alpine/v${ALPINE_VERSION}/kubezero" >> /etc/apk/repositories && \
+    apk upgrade -U -a --no-cache && \
     apk add --no-cache \
-    libstdc++ \
-    libc6-compat \
     ca-certificates \
-    aws-cli \
     podman \
     passt \
-    strace
+    py3-boto3 \
+    aws-cli \
+    pulumi@kubezero \
+    pulumi-language-python@kubezero
 
-COPY --from=builder /venv /venv
-COPY --from=builder /root/.pulumi/bin /usr/local/bin
+ADD dist /dist
+
+RUN python3 -m venv venv && \
+    . /venv/bin/activate && \
+    pip install --no-compile dist/cloudbender-*.whl
 
 # Dont run as root by default
 RUN addgroup $USER && adduser $USER -G $USER -D && \
