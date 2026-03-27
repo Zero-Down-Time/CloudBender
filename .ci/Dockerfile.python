@@ -12,5 +12,8 @@ RUN apk add --no-cache \
   uv
 
 ENV UV_LINK_MODE=copy
+ENV UV_NO_CACHE=true
+ENV UV_PYTHON_DOWNLOADS=0
+ENV UV_COMPILE_BYTECODE=0
 
 WORKDIR /app
