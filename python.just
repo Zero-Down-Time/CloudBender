@@ -1,6 +1,9 @@
 import 'builder.just'
 import 'git.just'
 
+prepare:
+  uv sync --locked --no-install-project --no-editable
+
 fmt:
   uv run --extra dev autopep8 -ir .
 
