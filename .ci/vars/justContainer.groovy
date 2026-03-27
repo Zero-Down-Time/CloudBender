@@ -40,6 +40,10 @@ def call(Map config=[:]) {
               // Build project specific builder
               if (needBuilder) {
                 sh "just update-builder"
+                sh "just use-builder prepare"
+              }
+              } else {
+                sh "just prepare"
               }
             }
           }
