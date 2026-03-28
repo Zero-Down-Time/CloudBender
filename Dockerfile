@@ -1,5 +1,6 @@
 FROM alpine:3.23.3
 
+# renovate: datasource=alpine-overlay depName=pulumi
 ARG PULUMI=3.228.0
 ARG USER=cloudbender
 
