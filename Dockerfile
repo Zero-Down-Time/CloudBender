@@ -2,6 +2,9 @@ FROM alpine:3.23
 
 ARG USER=cloudbender
 
+# trades about 300MB container size for 5s more startup latency
+# ENV PYTHONDONTWRITEBYTECODE=1
+
 RUN ALPINE_VERSION=$(. /etc/os-release && echo "$VERSION_ID" | cut -d. -f1,2) && \
     cd /etc/apk/keys && \
     wget "https://cdn.zero-downtime.net/alpine/stefan@zero-downtime.net-61bb6bfb.rsa.pub" && \
@@ -20,7 +23,7 @@ ADD dist /dist
 
 RUN python3 -m venv venv && \
     . /venv/bin/activate && \
-    pip install --no-compile dist/cloudbender-*.whl
+    pip install --no-cache-dir dist/cloudbender-*.whl
 
 # Dont run as root by default
 RUN addgroup $USER && adduser $USER -G $USER -D && \
