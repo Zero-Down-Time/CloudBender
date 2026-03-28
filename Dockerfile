@@ -1,5 +1,6 @@
-FROM alpine:3.23
+FROM alpine:3.23.3
 
+ARG PULUMI=3.228.0
 ARG USER=cloudbender
 
 # trades about 300MB container size for 5s more startup latency
@@ -16,8 +17,8 @@ RUN ALPINE_VERSION=$(. /etc/os-release && echo "$VERSION_ID" | cut -d. -f1,2) &&
     passt \
     py3-boto3 \
     aws-cli \
-    pulumi@kubezero \
-    pulumi-language-python@kubezero
+    pulumi@kubezero~${PULUMI} \
+    pulumi-language-python@kubezero~${PULUMI}
 
 ADD dist /dist
 
