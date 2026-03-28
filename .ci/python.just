@@ -12,7 +12,7 @@ lint:
 
 # requires 1.45 [arg('target', pattern='(release)?')]
 build target="":
-  uv build
+  uv build --clear
 
 test:
   uv run --extra dev pytest --log-cli-level=DEBUG
