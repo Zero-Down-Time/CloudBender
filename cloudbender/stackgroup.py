@@ -162,6 +162,32 @@ class StackGroup(object):
         child = pexpect.spawn(cmd)
         child.interact()
 
+    def state_upgrade(self):
+        """
+        Check and upgrade Pulumi state backend for this stack group.
+        Verifies if .pulumi/meta.yaml exists in S3 and runs 'pulumi state upgrade' if not.
+        """
+
+        project_name = self.config["parameters"]["Conglomerate"]
+        pulumi_backend = "{}/{}/{}".format(
+            self.config["pulumi"]["backend"], project_name, self.config["region"])
+
+        profile = self.config.get("profile", "default")
+        region = self.config.get("region", "global")
+
+        connection_manager = BotoConnection(profile, region)
+        connection_manager.exportProfileEnv()
+
+        _cmd = (
+            "eval $(aws configure export-credentials --profile {} --format env) && "
+            "aws s3 ls {}/.pulumi/meta.yaml > /dev/null 2>&1 && "
+            "echo 'No upgrade required.' || "
+            "AWS_REGION={} PULUMI_BACKEND_URL={} pulumi state upgrade --yes"
+        ).format(profile, pulumi_backend, region, pulumi_backend)
+
+        child = pexpect.spawn("/bin/sh", ["-c", _cmd])
+        child.interact()
+
     def list_stacks(self):
         project_name = self.config["parameters"]["Conglomerate"]
         pulumi_backend = "{}/{}/{}".format(

@@ -55,7 +55,7 @@ def cli(ctx, profile, region, debug, directory):
         sys.exit(1)
 
     # Only load stackgroups to get profile and region
-    if ctx.invoked_subcommand in ["wrap", "list_stacks"]:
+    if ctx.invoked_subcommand in ["wrap", "list_stacks", "state_upgrade"]:
         cb.read_config(loadStacks=False)
     else:
         cb.read_config()
@@ -360,6 +360,15 @@ def wrap(cb, stack_group, cmd):
 @click.command()
 @click.argument("stack_group", nargs=1, required=True)
 @click.pass_obj
+def state_upgrade(cb, stack_group):
+    """Check and upgrade Pulumi state backend for a stack group"""
+    sg = cb.sg.get_stackgroup(stack_group)
+    sg.state_upgrade()
+
+
+@click.command()
+@click.argument("stack_group", nargs=1, required=True)
+@click.pass_obj
 def list_stacks(cb, stack_group):
     """List all Pulumi stacks"""
     sg = cb.sg.get_stackgroup(stack_group)
@@ -515,6 +524,7 @@ cli.add_command(get_config)
 cli.add_command(_import)
 cli.add_command(export)
 cli.add_command(list_stacks)
+cli.add_command(state_upgrade)
 cli.add_command(assimilate)
 cli.add_command(execute)
 cli.add_command(wrap)
