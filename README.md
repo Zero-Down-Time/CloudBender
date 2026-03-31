@@ -1,109 +1,237 @@
 # ![Logo](https://git.zero-downtime.net/ZeroDownTime/CloudBender/media/branch/main/cloudbender.png) CloudBender
 
-# About
+## About
 
-Toolset to deploy and maintain infrastructure in automated and trackable manner.
-First class support for:
-- [Pulumi](https://www.pulumi.com/docs/)
-- [AWS CloudFormation](https://aws.amazon.com/cloudformation)
+CloudBender is an Infrastructure-as-Code orchestration tool for deploying and maintaining AWS infrastructure in an automated, traceable, and version-controlled manner.
 
+It provides a unified CLI with first-class support for two IaC backends:
+- [Pulumi](https://www.pulumi.com/docs/) — Python-based IaC with S3-backed state (no Pulumi Cloud dependency)
+- [AWS CloudFormation](https://aws.amazon.com/cloudformation) — with Jinja2 template rendering
 
-# Installation
-The preferred way of running CloudBender is using the public container. This ensure all tools and dependencies are in sync and underwent some basic testing during the development and build phase.
+### Key Features
 
-As a fall back CloudBender and its dependencies can be installed locally see step *1b* below.
+- **Dual IaC backend** — mix Pulumi and CloudFormation stacks in the same project
+- **Hierarchical configuration** — deep-merging config inheritance ideal for multi-account, multi-region AWS environments
+- **Self-hosted state** — Pulumi state stored in S3 per-account/per-region; no data sent to external APIs
+- **Secrets management** — Pulumi native encryption and [SOPS](https://github.com/mozilla/sops) for CloudFormation
+- **Dependency resolution** — automatic stack ordering based on declared dependencies
+- **Lifecycle hooks** — pre/post create and update hooks for custom automation
+- **Drift detection** — `refresh` command for Pulumi stacks
+- **Auto-generated docs** — markdown documentation from stack metadata and outputs
 
-## 1a. Containerized
+## Requirements
 
-The command below tests the ability to run containers within containers on your local setup.
-( This most likely only works on a recent Linux box/VM, which is capable of running rootless containers within containers.
-Requires kernel >= 5.12, Cgroups V2, podman, ... )
+- Python >= 3.12
+- [Pulumi](https://www.pulumi.com/docs/get-started/install/) >= 3.x
+- `podman` or `docker` (for container-based tasks)
+- AWS credentials configured via profiles (`~/.aws/config`)
+
+## Installation
+
+### Containerized (recommended)
+
+The preferred way to run CloudBender is via the public container image. This ensures all tools and dependencies are in sync and tested.
+
+> **Note:** Requires Linux with kernel >= 5.12, Cgroups V2, and podman for rootless nested containers.
+
+Verify your setup supports nested containers:
 
 ```
-podman run --rm -v .:/workspace -v $HOME/.aws/config:/workspace/.aws/config public.ecr.aws/zero-downtime/cloudbender:latest podman run -q --rm docker.io/busybox:latest echo "Rootless container inception works!"
+podman run --rm -v .:/workspace -v $HOME/.aws/config:/workspace/.aws/config \
+  public.ecr.aws/zero-downtime/cloudbender:latest \
+  podman run -q --rm docker.io/busybox:latest echo "Rootless container inception works!"
 ```
 
-if you get `Rootless container inception works!`, add an alias to your environment, eg:
+If successful, add an alias to your shell profile:
 
+```bash
+alias cloudbender="podman run --rm -v .:/workspace \
+  -v $HOME/.aws/config:/home/cloudbender/.aws/config \
+  public.ecr.aws/zero-downtime/cloudbender:latest cloudbender"
 ```
-alias cloudbender="podman run --rm -v .:/workspace -v $HOME/.aws/config:/home/cloudbender/.aws/config public.ecr.aws/zero-downtime/cloudbender:latest cloudbender"
+
+### Local install
+
+```bash
+pip3 install -U cloudbender
+curl -fsSL https://get.pulumi.com | sh
 ```
-and proceed with step 2)
 
-## 1b. Local install
-- `pip3 install -U cloudbender`
-- `curl -fsSL https://get.pulumi.com | sh`  (official [Docs](https://www.pulumi.com/docs/get-started/install/))
-- either `podman` or `docker` depending on your platform
+### Verify installation
 
-## 2. Test cli
-To verify that all pieces are in place run:
 ```
 cloudbender version
 ```
-which should get you something like:
+
+Expected output:
 ```
-[2022-06-28 16:06:24] CloudBender: 0.13.5
-[2022-06-28 16:06:24] Pulumi: v3.34.1
-[2022-06-28 16:06:24] Podman/Docker: podman version 4.1.0
+CloudBender: 0.x.x
+Pulumi: v3.228.0
+Podman/Docker: podman version 5.x.x
 ```
 
-## CLI
+## Project Layout
+
+A CloudBender project follows this directory structure:
+
+```
+my-project/
+├── config/                        # Configuration tree
+│   ├── config.yaml                # Global settings (profile, region, options)
+│   ├── production/                # Stack group
+│   │   ├── config.yaml            # Group-level overrides (deep-merged with parent)
+│   │   ├── us-east-1/             # Nested stack group (e.g. per-region)
+│   │   │   ├── config.yaml        # Region-level overrides
+│   │   │   └── vpc.yaml           # Stack definition
+│   │   └── networking.yaml        # Stack definition
+│   └── staging/
+│       ├── config.yaml
+│       └── app.yaml
+├── cloudformation/                # CloudFormation Jinja2 templates
+│   └── vpc.yaml.jinja
+└── artifacts/                     # Artifacts (Pulumi programs, scripts, etc.)
+    └── pulumi/
+        └── vpc.py                 # Pulumi Python program
+```
+
+### Configuration Hierarchy
+
+Configuration is hierarchically merged from parent to child. Lower-level config files override higher-level values, with deep merging for dictionaries and arrays. This enables DRY configuration across accounts, regions, and environments.
+
+### Stack Modes
+
+Each stack operates in one of three modes:
+
+| Mode | Description |
+|---|---|
+| `CloudBender` (default) | CloudFormation with Jinja2 rendering |
+| `pulumi` | Pulumi Python IaC |
+| `Piped` | CloudFormation with inter-stack reference injection |
+
+## CLI Reference
 
 ```
 Usage: cloudbender [OPTIONS] COMMAND [ARGS]...
 
 Options:
   --profile TEXT  Use named AWS .config profile, overwrites any stack config
+  --region TEXT   Use region, overwrites any stack config
   --dir TEXT      Specify cloudbender project directory.
   --debug         Turn on debug logging.
   --help          Show this message and exit.
-
-Commands:
-  assimilate         Imports potentially existing resources into Pulumi...
-  clean              Deletes all previously rendered files locally
-  create-change-set  Creates a change set for an existing stack - CFN only
-  create-docs        Parses all documentation fragments out of rendered...
-  delete             Deletes stacks or stack groups
-  execute            Executes custom Python function within an existing...
-  export             Exports a Pulumi stack to repair state
-  get-config         Get a config value, decrypted if secret
-  outputs            Prints all stack outputs
-  preview            Preview of Pulumi stack up operation
-  provision          Creates or updates stacks or stack groups
-  refresh            Refreshes Pulumi stack / Drift detection
-  render             Renders template and its parameters - CFN only
-  set-config         Sets a config value, encrypts with stack key if secret
-  sync               Renders template and provisions it right away
-  validate           Validates already rendered templates using cfn-lint...
-  version            Displays own version and all dependencies
 ```
 
-# Architecture
-## State management
-### Pulumi
-The state for all Pulumi resources are stored on S3 in your account and in the same region as the resources being deployed.
-No data is send to nor shared with the official Pulumi provided APIs.
+### Core Operations
 
-CloudBender configures Pulumi with a local, temporary workspace on the fly. This incl. the injection of various common parameters like the AWS account ID and region etc.
+| Command | Description |
+|---|---|
+| `provision <stack\|group> [--multi]` | Create or update stacks/stack groups |
+| `delete <stack\|group> [--multi]` | Delete stacks/stack groups (reverse dependency order) |
+| `preview <stack>` | Preview Pulumi stack changes before applying |
+| `refresh <stack>` | Drift detection — refreshes Pulumi stack state against actual cloud resources |
 
-### Cloudformation
-All state is handled by AWS Cloudformation.
-The required account and region are determined by CloudBender automatically from the configuration.
+### CloudFormation Commands
 
+| Command | Description |
+|---|---|
+| `render <stack> [--multi]` | Render Jinja2 templates to CloudFormation YAML |
+| `validate <stack> [--multi]` | Validate rendered templates using `cfn-lint` |
+| `create-change-set <stack> <name>` | Create a CloudFormation change set |
+| `sync <stack> [--multi]` | Render + provision in a single step |
 
-## Config management
-- Within the config folder each directory represents either a stack group if it has sub-directories, or an actual Cloudformation stack in case it is a leaf folder.
-- The actual configuration for each stack is hierachly merged. Lower level config files overwrite higher-level values. Complex data structures like dictionaries and arrays are deep merged.
+### Configuration & Secrets
 
-## Secrets
+| Command | Description |
+|---|---|
+| `get-config <stack> <key>` | Retrieve a config value (decrypted if secret) |
+| `set-config <stack> <key> <value> [--secret]` | Store a config value (encrypted if `--secret`) |
 
-### Pulumi
-CloudBender supports the native Pulumi secret handling.
-See [Pulumi Docs](https://www.pulumi.com/docs/intro/concepts/secrets/) for details.
+### Inspection & Documentation
 
-### Cloudformation
-CloudBender supports [SOPS](https://github.com/mozilla/sops) to encrypt values in any config file.
+| Command | Description |
+|---|---|
+| `outputs <stack> [--include regex] [--values]` | Print stack outputs, optionally filtered |
+| `docs <stack> [--multi]` | Generate documentation for stacks |
+| `list-stacks <group>` | List all Pulumi stacks in a group |
+| `version` | Display CloudBender, Pulumi, and Podman/Docker versions |
 
-If a sops encrypted config file is detected by CloudBender, it will automatically try to decrypt the file. All required information to decrypt has to be present in the embedded sops config or set ahead of time via sops supported ENVIRONMENT variables.
+### Pulumi State Management
 
-SOPS support can be disabled by setting `DISABLE_SOPS` in order to reduce timeouts etc.
+| Command | Description |
+|---|---|
+| `export <stack> [-r]` | Export Pulumi stack state (optionally remove pending operations) |
+| `import <stack> <file>` | Import a Pulumi state file |
+| `assimilate <stack>` | Import existing AWS resources into a Pulumi stack |
+| `execute <stack> [function] [args]` | Run custom Python functions within a stack context |
+
+### Utility
+
+| Command | Description |
+|---|---|
+| `wrap <group> <cmd>` | Execute an external program with stack group context |
+| `clean` | Delete all previously rendered template files |
+
+## Architecture
+
+### State Management
+
+**Pulumi** — State is stored in S3 within your own AWS account, in the same region as the deployed resources. No data is shared with Pulumi Cloud APIs. CloudBender creates temporary, isolated workspaces per stack operation and injects configuration (account ID, region, parameters) automatically.
+
+**CloudFormation** — State is managed natively by the AWS CloudFormation service. Templates can optionally be stored in S3 via the `template_bucket_url` setting.
+
+### Secrets
+
+**Pulumi** — Uses native Pulumi secret handling with passphrase-based or custom encryption keys. See [Pulumi Secrets docs](https://www.pulumi.com/docs/intro/concepts/secrets/).
+
+**CloudFormation** — Supports [SOPS](https://github.com/mozilla/sops) for encrypted config files. Encrypted files are automatically detected and decrypted at runtime. All required decryption metadata must be embedded in the SOPS config or set via environment variables. SOPS support can be disabled by setting the `DISABLE_SOPS` environment variable.
+
+### Hooks
+
+Stacks support lifecycle hooks defined in artifact metadata:
+
+- `pre_create`, `post_create` — before/after stack creation
+- `pre_update`, `post_update` — before/after stack update
+
+Built-in hook type:
+- `cmd` — execute arbitrary shell commands via subprocess
+
+### Dependency Resolution
+
+Stacks can declare dependencies on other stacks. CloudBender resolves these into a dependency graph and provisions stacks in the correct order, parallelizing independent stacks where possible (CloudFormation stacks run in parallel; Pulumi stacks run sequentially due to thread-safety constraints).
+
+## Environment Variables
+
+| Variable | Description |
+|---|---|
+| `CLOUDBENDER_PROJECT_ROOT` | Override the project root directory |
+| `DISABLE_SOPS` | Disable SOPS decryption for config files |
+| `PULUMI_SKIP_UPDATE_CHECK` | Set automatically in the container image |
+
+## Development
+
+```bash
+# Install dependencies
+just prepare
+
+# Format code
+just fmt
+
+# Lint
+just lint
+
+# Run tests
+just test
+
+# Build distribution
+just build
+```
+
+## License
+
+[AGPL-3.0-or-later](LICENSE.md)
+
+## Links
+
+- **Homepage:** https://git.zero-downtime.net/ZeroDownTime/CloudBender
+- **Container image:** `public.ecr.aws/zero-downtime/cloudbender:latest`
+- **PyPI:** `pip install cloudbender`
