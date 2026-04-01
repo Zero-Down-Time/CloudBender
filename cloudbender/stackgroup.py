@@ -178,12 +178,10 @@ class StackGroup(object):
         connection_manager = BotoConnection(profile, region)
         connection_manager.exportProfileEnv()
 
-        _cmd = (
-            "eval $(aws configure export-credentials --profile {} --format env) && "
-            "aws s3 ls {}/.pulumi/meta.yaml > /dev/null 2>&1 && "
-            "echo 'No upgrade required.' || "
-            "AWS_REGION={} PULUMI_BACKEND_URL={} pulumi state upgrade --yes"
-        ).format(profile, pulumi_backend, region, pulumi_backend)
+        _cmd = ("aws s3 ls {}/.pulumi/meta.yaml > /dev/null 2>&1 && "
+                "echo 'No upgrade required.' || "
+                "AWS_REGION={} PULUMI_BACKEND_URL={} pulumi state upgrade --yes"
+                ).format(pulumi_backend, region, pulumi_backend)
 
         child = pexpect.spawn("/bin/sh", ["-c", _cmd])
         child.interact()
