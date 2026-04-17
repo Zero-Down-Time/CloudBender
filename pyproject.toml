@@ -23,7 +23,7 @@ dependencies = [
         "ruamel.yaml",
         "rich",
         "pulumi",
-        "pulumi-aws<8",
+        "pulumi-aws>=7,<8",
         "pulumi-aws-native",
         "pulumi-policy",
         "pulumi-command",

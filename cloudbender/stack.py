@@ -11,6 +11,7 @@ import importlib
 
 from datetime import datetime, timedelta
 from dateutil.tz import tzutc
+from packaging.version import Version
 
 from botocore.exceptions import ClientError
 
@@ -813,7 +814,24 @@ class Stack(object):
 
         if self.mode == "pulumi":
             kwargs = self._set_pulumi_args()
-            self._get_pulumi_stack(create=True).up(**kwargs)
+            stack = self._get_pulumi_stack(create=True)
+
+            # Check for pulimi-aws v6 and migrate to v7 in demand
+            deployment = stack.export_stack()
+            state_version = None
+            for resource in deployment.deployment.get("resources", []):
+                if resource.get("type") == "pulumi:providers:aws":
+                    v = resource.get("inputs", {}).get("version")
+                    if v:
+                        state_version = Version(v)
+                        break
+
+            if state_version and state_version < Version("7.0.0"):
+                logger.info(f"🔄 Migrating stack from pulumi-aws {state_version} to v7...")
+                # Run refresh first to sync state
+                stack.refresh(on_output=self._log_pulumi)
+
+            stack.up(**kwargs)
             status = "COMPLETE"
 
         else:
