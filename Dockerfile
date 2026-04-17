@@ -1,4 +1,4 @@
-FROM alpine:3.23.3
+FROM alpine:3.23.4
 
 # renovate: datasource=alpine-overlay depName=pulumi
 ARG PULUMI=3.228.0
