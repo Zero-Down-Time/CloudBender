@@ -158,7 +158,7 @@ requires-dist = [
     { name = "mock" },
     { name = "pexpect" },
     { name = "pulumi" },
-    { name = "pulumi-aws", specifier = ">6,<8" },
+    { name = "pulumi-aws", specifier = ">=7,<8" },
     { name = "pulumi-aws-native" },
     { name = "pulumi-command" },
     { name = "pulumi-policy" },
