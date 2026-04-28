@@ -9,6 +9,8 @@ def call(Map config = [:]) {
     def debug       = config.debug       ?: false
     def stashName   = config.stashName   ?: 'changeSet'
 
+    def imageArg = imageName ? " '${imageName}'" : ''
+
     dir(workDir) {
         unstash stashName
         def files = readJSON file: "${tmpDir}/changeSet.json"
@@ -17,7 +19,7 @@ def call(Map config = [:]) {
             if (needBuilder) {
                 sh "just use-builder build release"
             }
-            sh "just container::build '${imageName}'"
+            sh "just container::build${imageArg}"
         } else {
             echo "No changed files matching any of: ${buildOnly.join(', ')}. No build required."
             currentBuild.description = 'SKIP'
