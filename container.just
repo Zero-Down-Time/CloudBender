@@ -4,11 +4,17 @@ import 'git.just'
 build image=git_repo_name:
   podman build --rm --layers -t {{ image }}:{{ git_tag }}-{{ arch }} --build-arg TAG={{ git_tag }} --build-arg ARCH={{ arch }} --platform linux/{{ arch }} .
 
-# Scan image for secrets and vulnerabilities
+# Scan source and image for secrets and vulnerabilities
 [no-cd]
 scan tmp="." image=git_repo_name:
   #!/usr/bin/env bash
   set -eo pipefail
+
+  # Source secrets scan
+  [ -n "$BETTERLEAKS_SRC_FILE" ] && BETTERLEAKS_SRC_OPTS="--no-banner --no-color --report-path $BETTERLEAKS_SRC_FILE --report-format sarif"
+  betterleaks dir . --validation false --exit-code 0 $BETTERLEAKS_SRC_OPTS
+
+  # Image scan: extract rootfs, scan secrets and CVEs
   echo "Extracting rootfs of {{ image }}:{{ git_tag }}-{{ arch }} ..."
   _cid=$(podman create {{ image }}:{{ git_tag }}-{{ arch }})
   trap "podman rm $_cid > /dev/null" EXIT
