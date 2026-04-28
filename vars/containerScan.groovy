@@ -4,6 +4,7 @@ def call(Map config = [:]) {
     def tmpDir    = config.tmpDir    ?: '_tmp'
     def imageName = config.imageName ?: ''
     def scanFail  = config.scanFail != null ? config.scanFail : true
+    def imageArg  = imageName ? " '${imageName}'" : ''
 
     dir(workDir) {
         withEnv([
@@ -13,7 +14,7 @@ def call(Map config = [:]) {
             "BETTERLEAKS_FILE=${tmpDir}/betterleaks-image-report.json",
             "BETTERLEAKS_SRC_FILE=${tmpDir}/betterleaks-src-report.json",
         ]) {
-            sh "just container::scan '${tmpDir}' '${imageName}'"
+            sh "just container::scan '${tmpDir}'${imageArg}"
         }
 
         recordIssues(

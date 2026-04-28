@@ -66,6 +66,13 @@ Two layers:
 
 Always single-quote interpolated values: `sh "just <target> '${var}'"`. Use `withEnv` for environment variables instead of inline `KEY=VAL ...` so Jenkins sets them directly without shell parsing. Values come from the Jenkinsfile config map (controlled), so single-quote is safe; if a value could contain a `'`, escape it explicitly.
 
+**Optional positional args must be omitted, not passed as `''`.** Just recipes typically default an arg like `image=git_repo_name`; passing an empty string from Groovy overrides that default with empty and breaks the recipe. Pattern:
+
+```groovy
+def imageArg = imageName ? " '${imageName}'" : ''
+sh "just container::build${imageArg}"
+```
+
 ### Optional just recipes
 
 Stages call recipes conditionally so consumers don't need to define every target:
