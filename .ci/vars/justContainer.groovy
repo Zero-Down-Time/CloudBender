@@ -40,9 +40,9 @@ def call(Map config=[:]) {
               // Build project specific builder
               if (needBuilder) {
                 sh "just update-builder"
-                sh "just use-builder prepare"
+                sh "if just --summary | grep -q prepare; then just use-builder prepare; fi"
               } else {
-                sh "just prepare"
+                sh "if just --summary | grep -q prepare; then just prepare; fi"
               }
             }
           }
@@ -66,9 +66,9 @@ def call(Map config=[:]) {
 
             script {
               if (needBuilder) {
-                sh "just use-builder lint"
+                sh "if just --summary | grep -q lint; then just use-builder lint; fi"
               } else {
-                sh "just lint"
+                sh "if just --summary | grep -q lint; then just lint; fi"
               }
             }
           }
@@ -129,6 +129,20 @@ def call(Map config=[:]) {
                 grype(pattern: "${TMP_DIR}/grype-report.json")
               ]
             )
+
+            // Grype HTML report
+            /* sh "GRYPE_LOG_QUIET=true GRYPE_OUTPUT=template GRYPE_OUTPUT_TEMPLATE_FILE=grype_report.tmpl GRYPE_FILE=${TMP_DIR}/grype_report.html BETTERLEAKS_FILE=${TMP_DIR}/betterleaks-image-report.json \
+             just container::scan ${TMP_DIR} ${imageName}"
+            publishHTML target: [
+              allowMissing: true,
+              alwaysLinkToLastBuild: true,
+              keepAll: true,
+              reportDir: "${TMP_DIR}",
+              reportFiles: 'grype_report.html',
+              reportName: 'GrypeScan',
+              reportTitles: 'GrypeScan'
+            ]
+            sh 'echo "Grype report at: $BUILD_URL/GrypeScan"' */
 
             recordIssues (
               enabledForFailure: true,
