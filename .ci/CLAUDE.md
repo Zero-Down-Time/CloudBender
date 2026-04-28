@@ -31,10 +31,11 @@ Two layers:
 | File | Purpose |
 |------|---------|
 | `git.just` | `git_tag` / `git_branch` / `git_repo_name` derivation, `tag` with sanitized branch suffix when not on main/master, arch validation (amd64/arm64), `_addCommitTagPush`, `cleanup-tags`, `ci-pull-upstream` |
-| `container.just` | `build`, `scan` (source + image betterleaks + grype), `ecr-login`, `push` (multi-arch manifest), `clean`, `rm-remote-untagged`, `create-public-repo` |
+| `common.just` | `scan-src` (source betterleaks). Imported by language modules so every language toolchain gets it. |
+| `container.just` | `build`, `scan` (image betterleaks + grype), `ecr-login`, `push` (multi-arch manifest), `clean`, `rm-remote-untagged`, `create-public-repo` |
 | `builder.just` | `update-builder` (build toolchain image), `use-builder <target>` (run target inside toolchain container via `buildah from` + `buildah run -v $(pwd):/app`) |
-| `rust.just` | `prepare` (cargo fetch), `lint` (clippy + cargo-deny), `build [release]` (cargo auditable), `test`, `cut-release` |
-| `python.just` | uv-based: `prepare` (uv sync --locked), `lint` (flake8), `build` (uv build), `test` (uv run pytest), `upload` (uv publish) |
+| `rust.just` | imports `common.just`; `prepare` (cargo fetch), `lint` (clippy + cargo-deny), `build [release]` (cargo auditable), `test`, `cut-release` |
+| `python.just` | imports `common.just`; uv-based: `prepare` (uv sync --locked), `lint` (flake8), `build` (uv build), `test` (uv run pytest), `upload` (uv publish) |
 
 ### Jenkins shared library (`vars/`)
 
@@ -42,10 +43,10 @@ Two layers:
 |------|---------|
 | `justContainer.groovy` | **Current entry point** — declarative pipeline composing per-stage helpers |
 | `containerPrepare.groovy` | `gitea.getChangeset()` → stash, `protectBuildFiles`, optional `just prepare` |
-| `containerLint.groovy` | `just lint` (or `just use-builder lint`) |
+| `containerLint.groovy` | `just scan-src` (source secrets, gated on `just --summary` containing it) + recordIssues, then `just lint` (or `just use-builder lint`) |
 | `containerBuild.groovy` | unstash changeset, gate on `pathsChanged(buildOnly)` or `forceBuild`, run `just container::build`. Sets `currentBuild.description = 'SKIP'` when nothing matches |
 | `containerTest.groovy` | **Stub** — currently `sh "echo"`. Intended `just container::test` is commented out |
-| `containerScan.groovy` | `just container::scan` with env vars for SARIF/JSON output paths, then three `recordIssues` (grype CVEs, image leaks, source leaks) |
+| `containerScan.groovy` | `just container::scan` with env vars for SARIF/JSON output paths, then `recordIssues` for grype CVEs and image leaks |
 | `containerPush.groovy` | `just container::push` + `just container::rm-remote-untagged` |
 | `containerClean.groovy` | `just container::clean` |
 | `gitea.groovy` | Gitea REST client: parses `GIT_URL`, fetches PR files (`/pulls/N/files`) or commit diff (`/compare/base...head`); `pathsChanged(files, patterns)` regex-matches |
@@ -102,7 +103,6 @@ Per-arch images tagged `<image>:<tag>-<arch>`, then `push` builds a manifest lis
 ## Known gaps
 
 - **`containerTest.groovy` is a stub.** Test stage runs `sh "echo"` and does nothing else. The Make path (`buildPodman.groovy`) does run `make test`.
-- **Source-leak scan runs in Scan stage** (gated on non-SKIP, non-FAILURE). On runs where nothing in `buildOnly` matches changed files, source leaks aren't scanned.
 - **No tests for the library itself.** No Jenkinsfile linter integration. Correctness verified by running against real consumer projects.
 - **`ecr_public_lifecycle.py` region** is hard-coded `us-east-1`; the `$(REGION)` Make variable passed to it is ignored.
 
