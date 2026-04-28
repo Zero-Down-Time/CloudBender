@@ -12,7 +12,6 @@ def call(Map config = [:]) {
             "GRYPE_OUTPUT=json",
             "GRYPE_FILE=${tmpDir}/grype-report.json",
             "BETTERLEAKS_FILE=${tmpDir}/betterleaks-image-report.json",
-            "BETTERLEAKS_SRC_FILE=${tmpDir}/betterleaks-src-report.json",
         ]) {
             sh "just container::scan '${tmpDir}'${imageArg}"
         }
@@ -38,18 +37,6 @@ def call(Map config = [:]) {
             qualityGates: [[threshold: 1, type: 'TOTAL_ERROR', criticality: scanFail ? 'FAILURE' : 'NOTE']],
             tools: [
                 sarif(pattern: "${tmpDir}/betterleaks-image-report.json", id: 'image-leaks', name: 'Image Leaks')
-            ]
-        )
-
-        recordIssues(
-            enabledForFailure: true,
-            sourceCodeRetention: 'NEVER',
-            skipPublishingChecks: true,
-            quiet: true,
-            skipBlames: true,
-            qualityGates: [[threshold: 1, type: 'TOTAL_ERROR', criticality: scanFail ? 'FAILURE' : 'NOTE']],
-            tools: [
-                sarif(pattern: "${tmpDir}/betterleaks-src-report.json", id: 'source-leaks', name: 'Source Leaks')
             ]
         )
     }
