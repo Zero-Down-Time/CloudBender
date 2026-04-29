@@ -45,7 +45,7 @@ Two layers:
 | `containerPrepare.groovy` | `gitea.getChangeset()` → stash, `protectBuildFiles`, optional `just prepare` |
 | `containerLint.groovy` | `just scan-src` (source secrets, gated on `just --summary` containing it) + recordIssues, then `just lint` (or `just use-builder lint`) |
 | `containerBuild.groovy` | unstash changeset, gate on `pathsChanged(buildOnly)` or `forceBuild`, run `just container::build`. Sets `currentBuild.description = 'SKIP'` when nothing matches |
-| `containerTest.groovy` | **Stub** — currently `sh "echo"`. Intended `just container::test` is commented out |
+| `containerTest.groovy` | `just test` (or `just use-builder test`), gated on `just --summary` containing `test`. Skipped silently if the consumer doesn't define a `test` recipe. |
 | `containerScan.groovy` | `just container::scan` with env vars for SARIF/JSON output paths, then `recordIssues` for grype CVEs and image leaks |
 | `containerPush.groovy` | `just container::push <registry> [imageName]` + `just container::rm-remote-untagged <registry> [imageName]`. `registry` config is required (the stage `error()`s out if unset); passed as the first positional arg to both recipes. |
 | `containerClean.groovy` | `just container::clean` |
@@ -113,7 +113,6 @@ Per-service Jenkinsfile typically sets `workDir`, `imageName`, `buildOnly` (rege
 
 ## Known gaps
 
-- **`containerTest.groovy` is a stub.** Test stage runs `sh "echo"` and does nothing else. The Make path (`buildPodman.groovy`) does run `make test`.
 - **No tests for the library itself.** No Jenkinsfile linter integration. Correctness verified by running against real consumer projects.
 
 ## Working with this repo
