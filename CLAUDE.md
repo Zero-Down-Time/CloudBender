@@ -32,7 +32,7 @@ Two layers:
 |------|---------|
 | `git.just` | `git_tag` / `git_branch` / `git_repo_name` derivation, `tag` with sanitized branch suffix when not on main/master, arch validation (amd64/arm64), `_addCommitTagPush`, `cleanup-tags`, `ci-pull-upstream` |
 | `common.just` | `scan-src` (source betterleaks). Imported by language modules so every language toolchain gets it. |
-| `container.just` | `build`, `scan` (image betterleaks + grype), `ecr-login`, `push` (multi-arch manifest), `clean`, `rm-remote-untagged`, `create-repo`. Public and private AWS ECR are auto-detected from the `REGISTRY` env var. **`REGISTRY` is required** — no default. `build`/`scan`/`clean` don't reference it (lazy eval), so they work without it; push/login/create-repo/rm-remote-untagged fail with "environment variable `REGISTRY` not present" if unset. |
+| `container.just` | `build`, `scan` (image betterleaks + grype), `ecr-login`, `push` (multi-arch manifest), `clean`, `rm-remote-untagged`, `create-repo`. Recipes that touch a registry take it as their **first positional argument** (`registry`). Public ECR (`public.ecr.aws/...`) and private ECR (`*.dkr.ecr.<region>.amazonaws.com`) auto-detected by URL shape. `build`/`scan`/`clean` take no registry and stay reachable directly. Consumers typically define `registry := "..."` in their root justfile and either pass it explicitly (`just container::push {{ registry }} <image>`) or wrap the recipes locally; the Jenkins glue propagates the `registry:` config field as the first positional. |
 | `builder.just` | `update-builder` (build toolchain image), `use-builder <target>` (run target inside toolchain container via `buildah from` + `buildah run -v $(pwd):/app`) |
 | `rust.just` | imports `common.just`; `prepare` (cargo fetch), `lint` (clippy + cargo-deny), `build [release]` (cargo auditable), `test`, `cut-release` |
 | `python.just` | imports `common.just`; uv-based: `prepare` (uv sync --locked), `lint` (flake8), `build` (uv build), `test` (uv run pytest), `upload` (uv publish) |
@@ -47,7 +47,7 @@ Two layers:
 | `containerBuild.groovy` | unstash changeset, gate on `pathsChanged(buildOnly)` or `forceBuild`, run `just container::build`. Sets `currentBuild.description = 'SKIP'` when nothing matches |
 | `containerTest.groovy` | **Stub** — currently `sh "echo"`. Intended `just container::test` is commented out |
 | `containerScan.groovy` | `just container::scan` with env vars for SARIF/JSON output paths, then `recordIssues` for grype CVEs and image leaks |
-| `containerPush.groovy` | `just container::push` + `just container::rm-remote-untagged`. Optional `registry` config is propagated as `REGISTRY` env var via `withEnv` so private ECR is selected from the consumer Jenkinsfile without modifying their justfile. |
+| `containerPush.groovy` | `just container::push <registry> [imageName]` + `just container::rm-remote-untagged <registry> [imageName]`. `registry` config is required (the stage `error()`s out if unset); passed as the first positional arg to both recipes. |
 | `containerClean.groovy` | `just container::clean` |
 | `gitea.groovy` | Gitea REST client: parses `GIT_URL`, fetches PR files (`/pulls/N/files`) or commit diff (`/compare/base...head`); `pathsChanged(files, patterns)` regex-matches |
 | `protectBuildFiles.groovy` | On PRs only: `git checkout origin/<target> -- <files>` to overwrite CI files from target branch (defends against PRs modifying their own CI) |
@@ -108,7 +108,7 @@ Per-service Jenkinsfile typically sets `workDir`, `imageName`, `buildOnly` (rege
 ## External integration
 
 - **Gitea** — changeset detection via REST API. Credentials: Jenkins username/password credential ID `gitea-jenkins-password` (default, configurable). API base derived from `env.GIT_URL` or overridden via config.
-- **AWS ECR (public or private)** — `aws ecr-public get-login-password` (region `us-east-1`, fixed for ECR Public) or `aws ecr get-login-password` (region parsed from the registry hostname `*.dkr.ecr.<region>.amazonaws.com`) piped to `podman login`. **No default registry** — every consumer must set `REGISTRY` (commonly via `registry:` in the Jenkinsfile config, which `containerPush.groovy` propagates as the `REGISTRY` env var via `withEnv`). Local dev and Jenkins agent both rely on ambient AWS credentials (env vars, instance profile, etc.) — no credential plumbing in the library.
+- **AWS ECR (public or private)** — `aws ecr-public get-login-password` (region `us-east-1`, fixed for ECR Public) or `aws ecr get-login-password` (region parsed from the registry hostname `*.dkr.ecr.<region>.amazonaws.com`) piped to `podman login`. **No default registry** — every consumer must declare it. Jenkins consumers pass `registry: '...'` in `justContainer(...)`; `containerPush.groovy` validates and forwards it as the first positional arg to the just recipes. Local dev consumers either pass it explicitly or wrap the recipes in their own justfile using a local `registry := "..."` variable. Local dev and Jenkins agent both rely on ambient AWS credentials (env vars, instance profile, etc.) — no credential plumbing in the library.
 - **Required Jenkins plugins:** Pipeline (declarative), Git, HTTP Request, Pipeline Utility Steps, Credentials Plugin, Warnings Next Generation (`recordIssues` with `grype` and `sarif` tools).
 
 ## Known gaps

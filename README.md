@@ -159,27 +159,35 @@ justContainer(
 
 ## Local dev
 
-`registry` from the Jenkinsfile becomes the `REGISTRY` env var inside the just recipes. For matching local behaviour, set the same env var in your shell:
+Recipes that touch the registry take it as their first positional argument:
 
 ```bash
-export REGISTRY=1234567890.dkr.ecr.us-east-1.amazonaws.com   # or public.ecr.aws/<alias>
-just container::build my-app
-just container::push my-app
+just container::build my-app                                          # registry not needed
+just container::ecr-login public.ecr.aws/<alias>
+just container::push public.ecr.aws/<alias> my-app
+just container::create-repo public.ecr.aws/<alias> my-app
 ```
 
-Or set it once in the consuming project's justfile:
+For ergonomics, define the registry once in your project's root `.justfile` and add convenience wrappers:
 
 ```just
-export REGISTRY := "1234567890.dkr.ecr.us-east-1.amazonaws.com"
+registry := "public.ecr.aws/<alias>"          # or "<account>.dkr.ecr.<region>.amazonaws.com"
+
+mod container '.ci/container.just'
+import '.ci/python.just'                       # or rust.just
+
+# Convenience wrappers — pass the registry through to module recipes
+push image="":
+  just container::push {{ registry }} {{ image }}
+
+ecr-login:
+  just container::ecr-login {{ registry }}
+
+create-repo image="":
+  just container::create-repo {{ registry }} {{ image }}
 ```
 
-To create a new repository (run once, requires AWS create permissions):
-
-```bash
-REGISTRY=... just container::create-repo my-app
-```
-
-`build`, `scan`, and `clean` recipes don't reference `REGISTRY`, so it's only required when you actually push or manage remote images.
+`build`, `scan`, and `clean` recipes don't take a registry, so they remain reachable as `just container::build` etc. without any wrapping. The Jenkins glue passes the registry directly from the `registry:` config field — consumers don't need wrappers for CI.
 
 ## Maintenance
 

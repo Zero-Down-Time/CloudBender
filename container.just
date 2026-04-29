@@ -1,10 +1,9 @@
 import 'git.just'
 
-# Target ECR registry. Required: must be set by each consuming project as the
-# REGISTRY env var (commonly via Jenkinsfile config or the consumer's justfile).
-# Public ECR (public.ecr.aws/...) and private ECR (*.dkr.ecr.<region>.amazonaws.com)
-# are auto-detected from the URL shape. Lazy: build/scan/clean recipes don't need it.
-registry := env_var("REGISTRY")
+# Recipes that interact with a remote registry take it as the first positional
+# argument. Public ECR (public.ecr.aws/...) and private ECR (*.dkr.ecr.<region>.amazonaws.com)
+# are auto-detected from the URL shape; private region is parsed from the hostname.
+# build/scan/clean don't need a registry and accept only an optional image name.
 
 [no-cd]
 build image=git_repo_name:
@@ -26,7 +25,7 @@ scan tmp="." image=git_repo_name:
   rm -rf {{ tmp }}/rootfs
 
 # Log into AWS ECR (public or private). Region inferred from the registry URL for private.
-ecr-login:
+ecr-login registry:
   #!/usr/bin/env bash
   set -eo pipefail
   case "{{ registry }}" in
@@ -46,7 +45,7 @@ ecr-login:
   esac
 
 # Create a new AWS ECR (public or private) repository
-create-repo image=git_repo_name:
+create-repo registry image=git_repo_name:
   #!/usr/bin/env bash
   set -eo pipefail
   case "{{ registry }}" in
@@ -64,7 +63,7 @@ create-repo image=git_repo_name:
   esac
 
 # tag and push all actual images and multi-arch manifest
-push image=git_repo_name extra_tags="": ecr-login
+push registry image=git_repo_name extra_tags="": (ecr-login registry)
   #!/usr/bin/env bash
   for t in {{ git_tag }} latest {{ extra_tags }}; do
     echo "Tagging image with {{ registry }}/{{ image }}:${t}-{{ arch }}"
@@ -90,6 +89,6 @@ clean image=git_repo_name extra_tags="":
 
 # delete all remote untagged and in-dev images, keep 10 tagged
 [no-cd]
-rm-remote-untagged image=git_repo_name:
+rm-remote-untagged registry image=git_repo_name:
   @echo "Removing all untagged and in-dev images from {{ registry }}/{{ image }}"
   {{ source_directory() }}/ecr_lifecycle.py --repo {{ image }} --registry "{{ registry }}" --dev
