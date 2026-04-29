@@ -92,7 +92,18 @@ Per-arch images tagged `<image>:<tag>-<arch>`, then `push` builds a manifest lis
 
 ### Versioning
 
-`git_tag` from `git describe --tags --match v*.*.* --dirty`, falls back to short SHA. On non-main branches, `tag` becomes `<git_tag>-<sanitized-branch>` unless the branch is already a substring/equal.
+`git_tag` from `git describe --tags --match "${TAG_MATCH:-v*.*.*}" --dirty`, falls back to short SHA. The default match `v*.*.*` covers single-repo projects; monorepo services override it via `export TAG_MATCH := "<service>/v*.*.*"` in their justfile so `git describe` only considers that service's release tags. On non-main branches, `tag` becomes `<git_tag>-<sanitized-branch>` unless the branch is already a substring/equal.
+
+### Monorepo support
+
+The library is path-aware so a single `.ci/` subtree at the repo root serves multiple services in subdirectories:
+
+- `builder.just` resolves `Dockerfile.<toolchain>` via `source_directory()` so `update-builder` works regardless of caller cwd.
+- `use-builder` mounts the repo root (not `$(pwd)`) and `cd`s to the caller's relative path inside the container, so `import '../../.ci/<lang>.just'` from a service justfile resolves at runtime.
+- `git.just` honours `$TAG_MATCH` for per-service tag prefixes.
+- `containerPrepare` defaults `protect` to `["${workDir}/.justfile", "${workDir}/Jenkinsfile", '.ci/**']` — service-scoped without needing per-Jenkinsfile config. Note: protecting `Jenkinsfile` is symbolic only; Jenkins reads it before any pipeline step runs, so `protectBuildFiles` cannot prevent a malicious PR Jenkinsfile from executing. Real defense lives in Jenkins controller config (PR approval policies for external contributors).
+
+Per-service Jenkinsfile typically sets `workDir`, `imageName`, `buildOnly` (regex with the service's path prefix), and `needBuilder`. See README "Monorepo layout" for a full example.
 
 ## External integration
 

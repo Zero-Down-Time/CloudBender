@@ -109,6 +109,50 @@ Common Makefile include providing standardized build targets:
 - **`utils.sh`** — Bash helpers for semantic version bumping (`bumpVersion`) and git commit/tag/push automation (`addCommitTagPush`).
 - **`Dockerfile.rust`** — Multi-stage Rust builder image (Alpine 3.23) with cargo, clippy, sccache, cargo-auditable, cargo-deny, and just.
 
+## Monorepo layout
+
+For a monorepo where each service has its own `.justfile`, `Jenkinsfile`, and `Dockerfile` under a subdirectory (e.g. `services/api-users/`), share one `.ci/` subtree at the repo root and pass per-service config:
+
+```
+repo/
+├── .ci/                            # git subtree of ci-tools-lib
+└── services/
+    └── api-users/
+        ├── Jenkinsfile
+        ├── .justfile
+        ├── Dockerfile
+        └── pyproject.toml
+```
+
+**`services/api-users/.justfile`:**
+
+```just
+# Per-service tag prefix so `git describe` only sees this service's releases
+export TAG_MATCH := "api-users/v*.*.*"
+
+# Toolchain — flat-imported so `just lint`, `just prepare`, `just scan-src`,
+# `just use-builder lint` etc. work. Pulls common.just, builder.just, git.just.
+import '../../.ci/python.just'
+
+# Container recipes namespaced — Jenkins glue calls `just container::build`.
+mod container '../../.ci/container.just'
+```
+
+**`services/api-users/Jenkinsfile`:**
+
+```groovy
+@Library('ci-tools-lib') _
+
+justContainer(
+    workDir:     'services/api-users',
+    imageName:   'api-users',
+    buildOnly:   ['services/api-users/.*', '\\.ci/.*'],
+    needBuilder: true,
+)
+```
+
+`protect` defaults to `["${workDir}/.justfile", '.ci/**']`, so a service-scoped justfile is restored from the target branch on PR builds without needing to override it. Tag releases as `api-users/v1.2.3` and configure the Jenkins multibranch project's *Script Path* to `services/*/Jenkinsfile`.
+
 ## Maintenance
 
 Pull the latest upstream changes into your project:

@@ -4,7 +4,9 @@ def call(Map config = [:]) {
     def tmpDir      = config.tmpDir      ?: '_tmp'
     def debug       = config.debug       ?: false
     def needBuilder = config.needBuilder ?: false
-    def protect     = config.protect     ?: ['.justfile', '.ci/**']
+    def justfilePath    = workDir == '.' ? '.justfile' : "${workDir}/.justfile"
+    def jenkinsfilePath = workDir == '.' ? 'Jenkinsfile' : "${workDir}/Jenkinsfile"
+    def protect     = config.protect     ?: [justfilePath, jenkinsfilePath, '.ci/**']
     def stashName   = config.stashName   ?: 'changeSet'
 
     def files = gitea.getChangeset(debug: debug)
