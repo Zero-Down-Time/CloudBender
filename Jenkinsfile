@@ -3,7 +3,7 @@ library identifier: 'zdt-lib@main', retriever: modernSCM(
    remote: 'https://git.zero-downtime.net/ZeroDownTime/ci-tools-lib.git'])
 
 justContainer(
-  registry: 'public.ecr.aws/zero-downtime/cloudbender',
+  registry: 'public.ecr.aws/zero-downtime',
   needBuilder: true,
   scanFail: false
   )

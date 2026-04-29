@@ -4,7 +4,7 @@ import '.ci/python.just'
 mod container '.ci/container.just'
 
 toolchain := "python"
-registry := "public.ecr.aws/zero-downtime/cloudbender"
+registry := "public.ecr.aws/zero-downtime"
 
 default: build
 
