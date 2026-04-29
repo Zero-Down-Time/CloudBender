@@ -1,9 +1,10 @@
 import 'git.just'
 
-# Default ECR registry. Override per-project/service via the REGISTRY env var.
+# Target ECR registry. Required: must be set by each consuming project as the
+# REGISTRY env var (commonly via Jenkinsfile config or the consumer's justfile).
 # Public ECR (public.ecr.aws/...) and private ECR (*.dkr.ecr.<region>.amazonaws.com)
-# are auto-detected from the URL shape.
-registry := env_var_or_default("REGISTRY", "public.ecr.aws/zero-downtime")
+# are auto-detected from the URL shape. Lazy: build/scan/clean recipes don't need it.
+registry := env_var("REGISTRY")
 
 [no-cd]
 build image=git_repo_name:

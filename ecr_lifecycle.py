@@ -19,8 +19,7 @@ parser = argparse.ArgumentParser(
     description='Implement basic ECR (public or private) image lifecycle policy')
 parser.add_argument('--repo', dest='repositoryName', action='store', required=True,
                     help='Name of the ECR repository')
-parser.add_argument('--registry', dest='registry', action='store',
-                    default='public.ecr.aws/zero-downtime',
+parser.add_argument('--registry', dest='registry', action='store', required=True,
                     help='Registry URL; determines public vs private ECR and region')
 parser.add_argument('--keep', dest='keep', action='store', default=10, type=int,
                     help='number of tagged images to keep, default 10')

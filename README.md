@@ -34,9 +34,8 @@ import '.ci/git.just'
 **Using Make** (deprecated — support will be removed midterm) — Create a top-level `Makefile`:
 
 ```makefile
-REGISTRY := <your-registry>
+REGISTRY := public.ecr.aws/<alias>             # or 1234567890.dkr.ecr.<region>.amazonaws.com
 IMAGE := <image_name>
-REGION := <AWS region of your registry>
 
 include .ci/podman.mk
 ```
@@ -50,9 +49,10 @@ Add a `Jenkinsfile` using the shared libraries:
 
 // Just-based projects (recommended)
 justContainer(
-  buildOnly: ['src/.*', '.justfile'],
+  imageName:   'my-app',
+  registry:    'public.ecr.aws/<alias>',  // or '<account>.dkr.ecr.<region>.amazonaws.com'
+  buildOnly:   ['src/.*', '.justfile'],
   needBuilder: true,
-  imageName: 'my-app',
 )
 
 // Or Make-based projects (deprecated)
@@ -60,6 +60,8 @@ buildPodman(
   buildOnly: ['src/.*', 'Cargo.*'],
 )
 ```
+
+`registry` is required — set it explicitly per project. The library auto-detects public vs private ECR from the URL shape (`public.ecr.aws/...` vs `*.dkr.ecr.<region>.amazonaws.com`) and dispatches to the correct `aws ecr` / `aws ecr-public` API. Region for private is parsed from the hostname. Both the agent and dev workstation need ambient AWS credentials in scope (env vars, instance profile, etc.) — the library does no credential plumbing.
 
 ## Components
 
@@ -147,33 +149,28 @@ mod container '../../.ci/container.just'
 justContainer(
     workDir:     'services/api-users',
     imageName:   'api-users',
+    registry:    '1234567890.dkr.ecr.us-east-1.amazonaws.com',  // or public.ecr.aws/<alias>
     buildOnly:   ['services/api-users/.*', '\\.ci/.*'],
     needBuilder: true,
 )
 ```
 
-`protect` defaults to `["${workDir}/.justfile", '.ci/**']`, so a service-scoped justfile is restored from the target branch on PR builds without needing to override it. Tag releases as `api-users/v1.2.3` and configure the Jenkins multibranch project's *Script Path* to `services/*/Jenkinsfile`.
+`protect` defaults to `["${workDir}/.justfile", "${workDir}/Jenkinsfile", '.ci/**']`, so service-scoped build files are restored from the target branch on PR builds without needing to override it. Tag releases as `api-users/v1.2.3` and configure the Jenkins multibranch project's *Script Path* to `services/*/Jenkinsfile`.
 
-## Private ECR
+## Local dev
 
-The default registry is `public.ecr.aws/zero-downtime`. To push to a private ECR repository instead, set `REGISTRY` — either as an env var locally, or via Jenkins config:
-
-```groovy
-@Library('ci-tools-lib') _
-
-justContainer(
-    imageName:   'my-app',
-    registry:    '1234567890.dkr.ecr.us-east-1.amazonaws.com',
-    needBuilder: true,
-)
-```
-
-The library detects public vs private from the URL shape (`public.ecr.aws/...` vs `*.dkr.ecr.<region>.amazonaws.com`) and dispatches to the right `aws ecr` / `aws ecr-public` API. Region for private is parsed from the registry hostname. Both the local agent and Jenkins need standard AWS credentials in scope (env, instance profile, etc.) — no credential plumbing in the library.
-
-For local dev:
+`registry` from the Jenkinsfile becomes the `REGISTRY` env var inside the just recipes. For matching local behaviour, set the same env var in your shell:
 
 ```bash
-REGISTRY=1234567890.dkr.ecr.us-east-1.amazonaws.com just container::push my-app
+export REGISTRY=1234567890.dkr.ecr.us-east-1.amazonaws.com   # or public.ecr.aws/<alias>
+just container::build my-app
+just container::push my-app
+```
+
+Or set it once in the consuming project's justfile:
+
+```just
+export REGISTRY := "1234567890.dkr.ecr.us-east-1.amazonaws.com"
 ```
 
 To create a new repository (run once, requires AWS create permissions):
@@ -181,6 +178,8 @@ To create a new repository (run once, requires AWS create permissions):
 ```bash
 REGISTRY=... just container::create-repo my-app
 ```
+
+`build`, `scan`, and `clean` recipes don't reference `REGISTRY`, so it's only required when you actually push or manage remote images.
 
 ## Maintenance
 
