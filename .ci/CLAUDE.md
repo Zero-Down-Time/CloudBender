@@ -32,7 +32,7 @@ Two layers:
 |------|---------|
 | `git.just` | `git_tag` / `git_branch` / `git_repo_name` derivation, `tag` with sanitized branch suffix when not on main/master, arch validation (amd64/arm64), `_addCommitTagPush`, `cleanup-tags`, `ci-pull-upstream` |
 | `common.just` | `scan-src` (source betterleaks). Imported by language modules so every language toolchain gets it. |
-| `container.just` | `build`, `scan` (image betterleaks + grype), `ecr-login`, `push` (multi-arch manifest), `clean`, `rm-remote-untagged`, `create-public-repo` |
+| `container.just` | `build`, `scan` (image betterleaks + grype), `ecr-login`, `push` (multi-arch manifest), `clean`, `rm-remote-untagged`, `create-repo`. Public and private AWS ECR are auto-detected from the `REGISTRY` env var (default `public.ecr.aws/zero-downtime`). |
 | `builder.just` | `update-builder` (build toolchain image), `use-builder <target>` (run target inside toolchain container via `buildah from` + `buildah run -v $(pwd):/app`) |
 | `rust.just` | imports `common.just`; `prepare` (cargo fetch), `lint` (clippy + cargo-deny), `build [release]` (cargo auditable), `test`, `cut-release` |
 | `python.just` | imports `common.just`; uv-based: `prepare` (uv sync --locked), `lint` (flake8), `build` (uv build), `test` (uv run pytest), `upload` (uv publish) |
@@ -47,7 +47,7 @@ Two layers:
 | `containerBuild.groovy` | unstash changeset, gate on `pathsChanged(buildOnly)` or `forceBuild`, run `just container::build`. Sets `currentBuild.description = 'SKIP'` when nothing matches |
 | `containerTest.groovy` | **Stub** — currently `sh "echo"`. Intended `just container::test` is commented out |
 | `containerScan.groovy` | `just container::scan` with env vars for SARIF/JSON output paths, then `recordIssues` for grype CVEs and image leaks |
-| `containerPush.groovy` | `just container::push` + `just container::rm-remote-untagged` |
+| `containerPush.groovy` | `just container::push` + `just container::rm-remote-untagged`. Optional `registry` config is propagated as `REGISTRY` env var via `withEnv` so private ECR is selected from the consumer Jenkinsfile without modifying their justfile. |
 | `containerClean.groovy` | `just container::clean` |
 | `gitea.groovy` | Gitea REST client: parses `GIT_URL`, fetches PR files (`/pulls/N/files`) or commit diff (`/compare/base...head`); `pathsChanged(files, patterns)` regex-matches |
 | `protectBuildFiles.groovy` | On PRs only: `git checkout origin/<target> -- <files>` to overwrite CI files from target branch (defends against PRs modifying their own CI) |
@@ -58,7 +58,7 @@ Two layers:
 
 - `Dockerfile.rust`, `Dockerfile.python` — Alpine 3.23 toolchain images for `use-builder` flow.
 - `podman.mk` — **deprecated** Make include (feature-parallel to Just modules; uses `::` recipes for extensibility).
-- `ecr_public_lifecycle.py` — boto3 ECR Public image cleanup. Region hard-coded `us-east-1`. `--dev` deletes images whose every tag matches `*-g<hash>` or contains `dirty`.
+- `ecr_lifecycle.py` — boto3 image cleanup for public *and* private ECR. Public/private dispatch and region are derived from the `--registry` URL. `--dev` deletes images whose every tag matches `*-g<hash>` or contains `dirty`.
 - `utils.sh` — Bash `bumpVersion` (semver awk) + `addCommitTagPush`.
 
 ## Conventions
@@ -108,14 +108,13 @@ Per-service Jenkinsfile typically sets `workDir`, `imageName`, `buildOnly` (rege
 ## External integration
 
 - **Gitea** — changeset detection via REST API. Credentials: Jenkins username/password credential ID `gitea-jenkins-password` (default, configurable). API base derived from `env.GIT_URL` or overridden via config.
-- **AWS ECR Public** — `aws ecr-public get-login-password` piped to `podman login`. Default registry `public.ecr.aws/zero-downtime`, region `us-east-1` (hard-coded for ECR Public).
+- **AWS ECR (public or private)** — `aws ecr-public get-login-password` (region `us-east-1`, fixed for ECR Public) or `aws ecr get-login-password` (region parsed from the registry hostname `*.dkr.ecr.<region>.amazonaws.com`) piped to `podman login`. Default registry `public.ecr.aws/zero-downtime`. Private registry: set `REGISTRY` env var (locally) or pass `registry: '...'` in the Jenkinsfile config. Local dev and Jenkins agent both rely on ambient AWS credentials (env vars, instance profile, etc.) — no credential plumbing in the library.
 - **Required Jenkins plugins:** Pipeline (declarative), Git, HTTP Request, Pipeline Utility Steps, Credentials Plugin, Warnings Next Generation (`recordIssues` with `grype` and `sarif` tools).
 
 ## Known gaps
 
 - **`containerTest.groovy` is a stub.** Test stage runs `sh "echo"` and does nothing else. The Make path (`buildPodman.groovy`) does run `make test`.
 - **No tests for the library itself.** No Jenkinsfile linter integration. Correctness verified by running against real consumer projects.
-- **`ecr_public_lifecycle.py` region** is hard-coded `us-east-1`; the `$(REGION)` Make variable passed to it is ignored.
 
 ## Working with this repo
 

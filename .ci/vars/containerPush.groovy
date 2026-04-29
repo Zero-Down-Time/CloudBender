@@ -2,10 +2,14 @@
 def call(Map config = [:]) {
     def workDir   = config.workDir   ?: '.'
     def imageName = config.imageName ?: ''
+    def registry  = config.registry  ?: ''
     def imageArg  = imageName ? " '${imageName}'" : ''
+    def envVars   = registry ? ["REGISTRY=${registry}"] : []
 
     dir(workDir) {
-        sh "just container::push${imageArg}"
-        sh "just container::rm-remote-untagged${imageArg}"
+        withEnv(envVars) {
+            sh "just container::push${imageArg}"
+            sh "just container::rm-remote-untagged${imageArg}"
+        }
     }
 }

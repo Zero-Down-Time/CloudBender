@@ -1,5 +1,10 @@
 import 'git.just'
 
+# Default ECR registry. Override per-project/service via the REGISTRY env var.
+# Public ECR (public.ecr.aws/...) and private ECR (*.dkr.ecr.<region>.amazonaws.com)
+# are auto-detected from the URL shape.
+registry := env_var_or_default("REGISTRY", "public.ecr.aws/zero-downtime")
+
 [no-cd]
 build image=git_repo_name:
   podman build --rm --layers -t {{ image }}:{{ git_tag }}-{{ arch }} --build-arg TAG={{ git_tag }} --build-arg ARCH={{ arch }} --platform linux/{{ arch }} .
@@ -19,16 +24,46 @@ scan tmp="." image=git_repo_name:
   grype dir:{{ tmp }}/rootfs
   rm -rf {{ tmp }}/rootfs
 
-# log into AWS ECR public
-ecr-login registry="public.ecr.aws/zero-downtime":  
-  aws ecr-public get-login-password --region us-east-1 | podman login --username AWS --password-stdin {{ registry }}
+# Log into AWS ECR (public or private). Region inferred from the registry URL for private.
+ecr-login:
+  #!/usr/bin/env bash
+  set -eo pipefail
+  case "{{ registry }}" in
+    public.ecr.aws*)
+      aws ecr-public get-login-password --region us-east-1 \
+        | podman login --username AWS --password-stdin "{{ registry }}"
+      ;;
+    *.dkr.ecr.*.amazonaws.com*)
+      region=$(echo "{{ registry }}" | sed -n 's|^[^.]*\.dkr\.ecr\.\([^.]*\)\.amazonaws\.com.*|\1|p')
+      aws ecr get-login-password --region "$region" \
+        | podman login --username AWS --password-stdin "{{ registry }}"
+      ;;
+    *)
+      echo "Unrecognized ECR registry: {{ registry }}" >&2
+      exit 1
+      ;;
+  esac
 
-# create new AWS ECR public repository
-create-public-repo image=git_repo_name:
-  aws ecr-public create-repository --repository-name {{ image }} --region us-east-1
+# Create a new AWS ECR (public or private) repository
+create-repo image=git_repo_name:
+  #!/usr/bin/env bash
+  set -eo pipefail
+  case "{{ registry }}" in
+    public.ecr.aws*)
+      aws ecr-public create-repository --repository-name {{ image }} --region us-east-1
+      ;;
+    *.dkr.ecr.*.amazonaws.com*)
+      region=$(echo "{{ registry }}" | sed -n 's|^[^.]*\.dkr\.ecr\.\([^.]*\)\.amazonaws\.com.*|\1|p')
+      aws ecr create-repository --repository-name {{ image }} --region "$region"
+      ;;
+    *)
+      echo "Unrecognized ECR registry: {{ registry }}" >&2
+      exit 1
+      ;;
+  esac
 
 # tag and push all actual images and multi-arch manifest
-push image=git_repo_name registry="public.ecr.aws/zero-downtime" extra_tags="": ecr-login
+push image=git_repo_name extra_tags="": ecr-login
   #!/usr/bin/env bash
   for t in {{ git_tag }} latest {{ extra_tags }}; do
     echo "Tagging image with {{ registry }}/{{ image }}:${t}-{{ arch }}"
@@ -55,5 +90,5 @@ clean image=git_repo_name extra_tags="":
 # delete all remote untagged and in-dev images, keep 10 tagged
 [no-cd]
 rm-remote-untagged image=git_repo_name:
-  @echo "Removing all untagged and in-dev images from {{ image }}"
-  .ci/ecr_public_lifecycle.py --repo {{ image }} --dev
+  @echo "Removing all untagged and in-dev images from {{ registry }}/{{ image }}"
+  {{ source_directory() }}/ecr_lifecycle.py --repo {{ image }} --registry "{{ registry }}" --dev
