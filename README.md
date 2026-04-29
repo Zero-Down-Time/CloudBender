@@ -67,10 +67,11 @@ buildPodman(
 
 | Module            | Key Recipes                                              |
 |-------------------|----------------------------------------------------------|
-| `container.just`  | `build`, `scan`, `push`, `ecr-login`, `clean`, manifest management |
+| `container.just`  | `build`, `scan`, `push`, `ecr-login`, `create-repo`, `clean`, manifest management. Public and private AWS ECR auto-detected; override default via `REGISTRY` env var. |
 | `rust.just`       | `prepare`, `lint` (clippy + cargo-deny), `build`, `test`, version bumping |
 | `git.just`        | Version computation from tags, `tag-push`, legacy tag cleanup |
 | `builder.just`    | Builder container creation and execution via Buildah      |
+| `common.just`     | `scan-src` source secret scan; imported by language modules |
 
 ### Make — `podman.mk` (deprecated — support will be removed midterm)
 
@@ -88,7 +89,7 @@ Common Makefile include providing standardized build targets:
 | `make push`           | Push image to registry               |
 | `make ecr-login`      | Login to AWS ECR                     |
 | `make rm-remote-untagged` | Cleanup untagged/dev images     |
-| `make create-repo`    | Create AWS ECR public repository     |
+| `make create-repo`    | Create AWS ECR (public or private) repository |
 | `make clean`          | Clean up build artifacts             |
 | `make ci-pull-upstream` | Pull latest `.ci` subtree          |
 
@@ -105,7 +106,7 @@ Common Makefile include providing standardized build targets:
 
 ### Utilities
 
-- **`ecr_public_lifecycle.py`** — Python utility (requires `boto3`) to manage ECR image lifecycle: removes untagged images, prunes old dev-tagged images, keeps a configurable number of recent tagged images.
+- **`ecr_lifecycle.py`** — Python utility (requires `boto3`) to manage ECR image lifecycle for public *and* private ECR: removes untagged images, prunes old dev-tagged images, keeps a configurable number of recent tagged images. Detects public vs private from the `--registry` URL.
 - **`utils.sh`** — Bash helpers for semantic version bumping (`bumpVersion`) and git commit/tag/push automation (`addCommitTagPush`).
 - **`Dockerfile.rust`** — Multi-stage Rust builder image (Alpine 3.23) with cargo, clippy, sccache, cargo-auditable, cargo-deny, and just.
 
@@ -152,6 +153,34 @@ justContainer(
 ```
 
 `protect` defaults to `["${workDir}/.justfile", '.ci/**']`, so a service-scoped justfile is restored from the target branch on PR builds without needing to override it. Tag releases as `api-users/v1.2.3` and configure the Jenkins multibranch project's *Script Path* to `services/*/Jenkinsfile`.
+
+## Private ECR
+
+The default registry is `public.ecr.aws/zero-downtime`. To push to a private ECR repository instead, set `REGISTRY` — either as an env var locally, or via Jenkins config:
+
+```groovy
+@Library('ci-tools-lib') _
+
+justContainer(
+    imageName:   'my-app',
+    registry:    '1234567890.dkr.ecr.us-east-1.amazonaws.com',
+    needBuilder: true,
+)
+```
+
+The library detects public vs private from the URL shape (`public.ecr.aws/...` vs `*.dkr.ecr.<region>.amazonaws.com`) and dispatches to the right `aws ecr` / `aws ecr-public` API. Region for private is parsed from the registry hostname. Both the local agent and Jenkins need standard AWS credentials in scope (env, instance profile, etc.) — no credential plumbing in the library.
+
+For local dev:
+
+```bash
+REGISTRY=1234567890.dkr.ecr.us-east-1.amazonaws.com just container::push my-app
+```
+
+To create a new repository (run once, requires AWS create permissions):
+
+```bash
+REGISTRY=... just container::create-repo my-app
+```
 
 ## Maintenance
 
