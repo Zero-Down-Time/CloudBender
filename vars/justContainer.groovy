@@ -16,13 +16,13 @@ def call(Map config = [:]) {
       stages {
         stage('Prepare') {
           steps {
-            containerPrepare(config)
+            script { container.prepare(config) }
           }
         }
 
         stage('Lint') {
           steps {
-            containerLint(config)
+            script { container.lint(config) }
           }
         }
 
@@ -31,7 +31,7 @@ def call(Map config = [:]) {
             expression { currentBuild.currentResult != 'FAILURE' }
           }
           steps {
-            containerBuild(config)
+            script { container.build(config) }
           }
         }
 
@@ -41,7 +41,7 @@ def call(Map config = [:]) {
             expression { currentBuild.currentResult != 'FAILURE' }
           }
           steps {
-            containerTest(config)
+            script { container.test(config) }
           }
         }
 
@@ -51,7 +51,7 @@ def call(Map config = [:]) {
             expression { currentBuild.currentResult != 'FAILURE' }
           }
           steps {
-            containerScan(config)
+            script { container.scan(config) }
           }
         }
 
@@ -62,7 +62,7 @@ def call(Map config = [:]) {
             not { changeRequest() }
           }
           steps {
-            containerPush(config)
+            script { container.push(config) }
           }
         }
 
@@ -72,7 +72,7 @@ def call(Map config = [:]) {
             expression { currentBuild.currentResult != 'FAILURE' }
           }
           steps {
-            containerClean(config)
+            script { container.clean(config) }
           }
         }
       }

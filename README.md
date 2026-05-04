@@ -12,6 +12,7 @@ Various toolchain bits and pieces shared between projects — a shared CI/CD too
 - **Semantic Versioning** — Automatic version computation from git tags with branch suffix support
 - **Build Protection** — PR safety mechanism that overwrites build config files from the target branch
 - **Builder Containers** — Optional isolated build environments (e.g. Rust toolchain with sccache, cargo-deny, cargo-auditable)
+- **GitOps Writeback** — Post-build promotion: commit image tag/digest updates to a Gitea-hosted manifests repo (direct push or PR-gated) so ArgoCD/Flux sync the change
 
 ## Quickstart
 
@@ -74,6 +75,7 @@ buildPodman(
 | `git.just`        | Version computation from tags, `tag-push`, legacy tag cleanup |
 | `builder.just`    | Builder container creation and execution via Buildah      |
 | `common.just`     | `scan-src` source secret scan; imported by language modules |
+| `gitops.just`     | `update`. Edits image tags / yq paths in a manifests repo, commits, pushes (with rebase-retry). Commit message comes from `$GITOPS_COMMIT_MESSAGE`. PR opening lives in `gitea.groovy` (`gitea.openPullRequest`). Updates spec is a JSON file so push-mode promotions reproduce locally. |
 
 ### Make — `podman.mk` (deprecated — support will be removed midterm)
 
@@ -103,6 +105,7 @@ Common Makefile include providing standardized build targets:
 | `buildPodman.groovy`     | Full pipeline for Make-based container projects (deprecated) |
 | `gitea.groovy`           | Gitea API integration for change detection            |
 | `protectBuildFiles.groovy` | Overwrites CI files from target branch during PR builds |
+| `updateGitops.groovy` | GitOps writeback wrapper: commits yq-path updates to a Gitea manifests repo (`push` or `pr` mode). Auto-picks `sshagent` vs. `gitUsernamePassword` from the repo URL scheme. See `examples/Jenkinsfile.gitops-{push,pr}.groovy`. |
 
 **Pipeline stages:** Prepare → Lint → Build → Test → Scan → Push → Cleanup
 
@@ -156,6 +159,49 @@ justContainer(
 ```
 
 `protect` defaults to `["${workDir}/.justfile", "${workDir}/Jenkinsfile", '.ci/**']`, so service-scoped build files are restored from the target branch on PR builds without needing to override it. Tag releases as `api-users/v1.2.3` and configure the Jenkins multibranch project's *Script Path* to `services/*/Jenkinsfile`.
+
+## GitOps writeback
+
+Promote a freshly built image into a Gitea-hosted manifests repo so ArgoCD/Flux picks it up. The image tag is captured from `container.push(config)`'s return value (the actual `git_tag` published — e.g. `v1.2.3` on a tagged commit) and threaded into the Promote stage:
+
+```groovy
+@Library('ci-tools-lib') _
+
+def config   = [imageName: 'payments', registry: '...', /* ... */]
+def imageTag                                   // captured in Push, consumed in Promote
+
+pipeline {
+    // ... agent, Prepare/Lint/Build/Test/Scan stages calling container.<stage>(config) ...
+
+    stage('Push')   { steps { script { imageTag = container.push(config) } } }
+
+    stage('Promote') {
+        steps { script {
+            updateGitops(
+                repo:          'git@git.zero-downtime.net:zdt/infra.git',  // or https://...
+                branch:        'main',
+                credentialsId: 'infra-repo-deploy-key',                    // SSH key, or userpass for HTTPS
+                updates: [
+                    'apps/payments/values.yaml': [
+                        '.image.tag': imageTag,
+                    ],
+                ],
+            )
+        } }
+    }
+}
+```
+
+PR-gated mode adds `mode: 'pr'`, `tokenCredentialsId:` (Gitea API token), `prBranch:`, `prTitle:`, `prBody:`. Returns `[sha, branch, prUrl]`. The PR branch is reused on re-runs (idempotent: existing open PR URL is returned). See `examples/Jenkinsfile.gitops-push.groovy` and `examples/Jenkinsfile.gitops-pr.groovy` for full pipelines.
+
+Reproduce locally with the same recipes Jenkins runs:
+
+```bash
+echo '{"apps/payments/values.yaml":{".image.tag":"v1.2.3"}}' > /tmp/u.json
+just gitops::update git@git.zero-downtime.net:zdt/infra.git main /tmp/u.json
+```
+
+The consumer's root justfile must import the module: `mod gitops '.ci/gitops.just'`.
 
 ## Local dev
 
