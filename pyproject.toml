@@ -53,6 +53,7 @@ cloudbender = "cloudbender.cli:cli"
 
 [tool.hatch.version]
 source = "vcs"
+raw-options = { git_describe_command = ["git", "describe", "--dirty", "--tags", "--long", "--match", "*[0-9]*", "--first-parent"] }
 
 [tool.hatch.build.hooks.vcs]
 version-file = "cloudbender/_version.py"
