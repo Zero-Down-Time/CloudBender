@@ -173,6 +173,72 @@ def getCommitFiles(String giteaUrl, String token, String owner, String repo, Str
 }
 
 /**
+ * Open or reuse an open PR on Gitea. Idempotent: if an open PR already exists
+ * for head→base, returns its html_url without creating a new one.
+ *
+ * Required: repoUrl (auto-parsed for giteaUrl/owner/repo), credentialsId,
+ *           base, head, title.
+ * Optional: body (default ''), debug (default false).
+ * Returns: html_url String.
+ */
+def openPullRequest(Map config = [:]) {
+    def parsed = config.repoUrl ? parseGitUrl(config.repoUrl) : null
+    if (!parsed) {
+        error("openPullRequest: could not parse 'repoUrl' (got '${config.repoUrl}')")
+    }
+
+    def credentialsId = config.credentialsId ?: 'gitea-jenkins-password'
+    def base  = config.base
+    def head  = config.head
+    def title = config.title
+    def body  = config.body ?: ''
+    def debug = config.debug ?: false
+
+    assert base,  "openPullRequest: 'base' is required"
+    assert head,  "openPullRequest: 'head' is required"
+    assert title, "openPullRequest: 'title' is required"
+
+    def apiBase = "${parsed.giteaUrl}/api/v1/repos/${parsed.owner}/${parsed.repo}/pulls"
+    String prUrl = ''
+
+    withCredentials([usernamePassword(
+        credentialsId: credentialsId,
+        usernameVariable: 'GITEA_USERNAME',
+        passwordVariable: 'GITEA_TOKEN'
+    )]) {
+        def auth = "token ${env.GITEA_TOKEN}"
+
+        def listResp = httpRequest(
+            url: "${apiBase}?state=open&base=${base}",
+            httpMode: 'GET',
+            customHeaders: [[name: 'Authorization', value: auth, maskValue: true]],
+            contentType: 'APPLICATION_JSON',
+            validResponseCodes: '200',
+            quiet: !debug
+        )
+        def existing = readJSON(text: listResp.content).find { it.head?.ref == head }
+
+        if (existing) {
+            prUrl = existing.html_url
+        } else {
+            def createResp = httpRequest(
+                url: apiBase,
+                httpMode: 'POST',
+                customHeaders: [[name: 'Authorization', value: auth, maskValue: true]],
+                contentType: 'APPLICATION_JSON',
+                requestBody: writeJSON(returnText: true, json: [
+                    title: title, body: body, base: base, head: head
+                ]),
+                validResponseCodes: '201',
+                quiet: !debug
+            )
+            prUrl = readJSON(text: createResp.content).html_url
+        }
+    }
+    return prUrl
+}
+
+/**
  * Check if specific paths changed,
  * expects: [files], [patterns]
  */

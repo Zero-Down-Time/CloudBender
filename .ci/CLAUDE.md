@@ -21,7 +21,7 @@ Two layers:
 
 **Pipeline (declarative, in `vars/justContainer.groovy`):** Prepare → Lint → Build → Test → Scan → Push → Cleanup.
 
-- `currentBuild.description == 'SKIP'` is the cross-stage "no source changes, skip downstream" signal, set by `containerBuild` when no changed files match `buildOnly` patterns.
+- `currentBuild.description == 'SKIP'` is the cross-stage "no source changes, skip downstream" signal, set by `container.build` when no changed files match `buildOnly` patterns.
 - `Push` stage additionally gated by `not { changeRequest() }` — PRs never push.
 
 ## Files
@@ -30,28 +30,24 @@ Two layers:
 
 | File | Purpose |
 |------|---------|
-| `git.just` | `git_tag` / `git_branch` / `git_repo_name` derivation, `tag` with sanitized branch suffix when not on main/master, arch validation (amd64/arm64), `_addCommitTagPush`, `cleanup-tags`, `ci-pull-upstream` |
+| `git.just` | `git_tag` / `git_branch` / `git_repo_name` derivation, `tag` with sanitized branch suffix when not on main/master, arch validation (amd64/arm64), `_addCommitTagPush`, `_print-tag` (echoes `git_tag` — reachable as `container::_print-tag` via import), `cleanup-tags`, `ci-pull-upstream` |
 | `common.just` | `scan-src` (source betterleaks). Imported by language modules so every language toolchain gets it. |
 | `container.just` | `build`, `scan` (image betterleaks + grype), `ecr-login`, `push` (multi-arch manifest), `clean`, `rm-remote-untagged`, `create-repo`. Recipes that touch a registry take it as their **first positional argument** (`registry`). Public ECR (`public.ecr.aws/...`) and private ECR (`*.dkr.ecr.<region>.amazonaws.com`) auto-detected by URL shape. `build`/`scan`/`clean` take no registry and stay reachable directly. Consumers typically define `registry := "..."` in their root justfile and either pass it explicitly (`just container::push {{ registry }} <image>`) or wrap the recipes locally; the Jenkins glue propagates the `registry:` config field as the first positional. |
 | `builder.just` | `update-builder` (build toolchain image), `use-builder <target>` (run target inside toolchain container via `buildah from` + `buildah run -v $(pwd):/app`) |
 | `rust.just` | imports `common.just`; `prepare` (cargo fetch), `lint` (clippy + cargo-deny), `build [release]` (cargo auditable), `test`, `cut-release` |
 | `python.just` | imports `common.just`; uv-based: `prepare` (uv sync --locked), `lint` (flake8), `build` (uv build), `test` (uv run pytest), `upload` (uv publish) |
+| `gitops.just` | GitOps writeback: single `update` recipe (clone + idempotency + edit + rebase-retry push, optional PR mode). Commit message read from `$GITOPS_COMMIT_MESSAGE` (set by `vars/updateGitops.groovy`, which owns the default-message format). PR opening lives in `vars/gitea.groovy` (`gitea.openPullRequest`). Updates spec is a JSON file (`{ "<file>": { "<yq-path>": "<value>" } }`) so push-mode promotions reproduce locally. Tools required: `git`, `yq` (mikefarah), `jq`. |
 
 ### Jenkins shared library (`vars/`)
 
 | File | Purpose |
 |------|---------|
 | `justContainer.groovy` | **Current entry point** — declarative pipeline composing per-stage helpers |
-| `containerPrepare.groovy` | `gitea.getChangeset()` → stash, `protectBuildFiles`, optional `just prepare` |
-| `containerLint.groovy` | `just scan-src` (source secrets, gated on `just --summary` containing it) + recordIssues, then `just lint` (or `just use-builder lint`) |
-| `containerBuild.groovy` | unstash changeset, gate on `pathsChanged(buildOnly)` or `forceBuild`, run `just container::build`. Sets `currentBuild.description = 'SKIP'` when nothing matches |
-| `containerTest.groovy` | `just test` (or `just use-builder test`), gated on `just --summary` containing `test`. Skipped silently if the consumer doesn't define a `test` recipe. |
-| `containerScan.groovy` | `just container::scan` with env vars for SARIF/JSON output paths, then `recordIssues` for grype CVEs and image leaks |
-| `containerPush.groovy` | `just container::push <registry> [imageName]` + `just container::rm-remote-untagged <registry> [imageName]`. `registry` config is required (the stage `error()`s out if unset); passed as the first positional arg to both recipes. |
-| `containerClean.groovy` | `just container::clean` |
-| `gitea.groovy` | Gitea REST client: parses `GIT_URL`, fetches PR files (`/pulls/N/files`) or commit diff (`/compare/base...head`); `pathsChanged(files, patterns)` regex-matches |
+| `container.groovy` | Per-stage helpers consumed by `justContainer.groovy`. Methods (invoked as `container.<stage>(config)` inside `script { }`): `prepare` (gitea changeset → stash, `protectBuildFiles`, optional `just prepare`); `lint` (`just scan-src` + recordIssues, then `just lint`); `build` (unstash, gate on `pathsChanged(buildOnly)` or `forceBuild`, run `just container::build`; sets `currentBuild.description = 'SKIP'` when nothing matches); `test` (`just test` if defined); `scan` (`just container::scan` + grype/betterleaks recordIssues); `push` (`just container::push <registry>` + `rm-remote-untagged`; `registry` required); `clean` (`just container::clean`). |
+| `gitea.groovy` | Gitea REST client: parses `GIT_URL`, fetches PR files (`/pulls/N/files`) or commit diff (`/compare/base...head`), opens/reuses PRs (`openPullRequest`); `pathsChanged(files, patterns)` regex-matches |
 | `protectBuildFiles.groovy` | On PRs only: `git checkout origin/<target> -- <files>` to overwrite CI files from target branch (defends against PRs modifying their own CI) |
 | `quietCheckout.groovy` | Manual `git fetch/checkout --quiet` replicating Git plugin behaviour with less console noise |
+| `updateGitops.groovy` | GitOps writeback wrapper. Validates args, writes the updates spec to a tmp JSON file, picks credential binding by repo URL scheme (SSH key via `sshagent`, HTTPS via `gitUsernamePassword` → `GIT_ASKPASS`), then `sh "just gitops::update ..."`. For PR mode, additionally runs `just gitops::pr-open` against Gitea. Returns `[sha, branch, prUrl]`. Consumer-called from their own Jenkinsfile (not part of `justContainer` stages). |
 | `buildPodman.groovy` | **Deprecated** — Make-based equivalent of `justContainer`, kept for unmigrated projects |
 
 ### Other
@@ -101,14 +97,15 @@ The library is path-aware so a single `.ci/` subtree at the repo root serves mul
 - `builder.just` resolves `Dockerfile.<toolchain>` via `source_directory()` so `update-builder` works regardless of caller cwd.
 - `use-builder` mounts the repo root (not `$(pwd)`) and `cd`s to the caller's relative path inside the container, so `import '../../.ci/<lang>.just'` from a service justfile resolves at runtime.
 - `git.just` honours `$TAG_MATCH` for per-service tag prefixes.
-- `containerPrepare` defaults `protect` to `["${workDir}/.justfile", "${workDir}/Jenkinsfile", '.ci/**']` — service-scoped without needing per-Jenkinsfile config. Note: protecting `Jenkinsfile` is symbolic only; Jenkins reads it before any pipeline step runs, so `protectBuildFiles` cannot prevent a malicious PR Jenkinsfile from executing. Real defense lives in Jenkins controller config (PR approval policies for external contributors).
+- `container.prepare` defaults `protect` to `["${workDir}/.justfile", "${workDir}/Jenkinsfile", '.ci/**']` — service-scoped without needing per-Jenkinsfile config. Note: protecting `Jenkinsfile` is symbolic only; Jenkins reads it before any pipeline step runs, so `protectBuildFiles` cannot prevent a malicious PR Jenkinsfile from executing. Real defense lives in Jenkins controller config (PR approval policies for external contributors).
 
 Per-service Jenkinsfile typically sets `workDir`, `imageName`, `buildOnly` (regex with the service's path prefix), and `needBuilder`. See README "Monorepo layout" for a full example.
 
 ## External integration
 
 - **Gitea** — changeset detection via REST API. Credentials: Jenkins username/password credential ID `gitea-jenkins-password` (default, configurable). API base derived from `env.GIT_URL` or overridden via config.
-- **AWS ECR (public or private)** — `aws ecr-public get-login-password` (region `us-east-1`, fixed for ECR Public) or `aws ecr get-login-password` (region parsed from the registry hostname `*.dkr.ecr.<region>.amazonaws.com`) piped to `podman login`. **No default registry** — every consumer must declare it. Jenkins consumers pass `registry: '...'` in `justContainer(...)`; `containerPush.groovy` validates and forwards it as the first positional arg to the just recipes. Local dev consumers either pass it explicitly or wrap the recipes in their own justfile using a local `registry := "..."` variable. Local dev and Jenkins agent both rely on ambient AWS credentials (env vars, instance profile, etc.) — no credential plumbing in the library.
+- **GitOps writeback** — `updateGitops(...)` from a consumer Jenkinsfile commits image tag/digest changes to a Gitea-hosted manifests repo so ArgoCD/Flux pick them up. Two modes: `push` (direct commit to base branch) or `pr` (force-with-lease to a PR branch + idempotent Gitea PR open). Credentials: SSH-key credential when `repo` is `git@host:...` / `ssh://...`, username/password credential when `repo` is `https://...` (uses `gitUsernamePassword` so the token never lands in the URL or `.git/config`). PR mode additionally needs a username/password credential as the Gitea API token. Consumers must `mod gitops '.ci/gitops.just'` so the recipes are reachable. Examples: `examples/Jenkinsfile.gitops-{push,pr}.groovy`.
+- **AWS ECR (public or private)** — `aws ecr-public get-login-password` (region `us-east-1`, fixed for ECR Public) or `aws ecr get-login-password` (region parsed from the registry hostname `*.dkr.ecr.<region>.amazonaws.com`) piped to `podman login`. **No default registry** — every consumer must declare it. Jenkins consumers pass `registry: '...'` in `justContainer(...)`; `container.push` validates and forwards it as the first positional arg to the just recipes. Local dev consumers either pass it explicitly or wrap the recipes in their own justfile using a local `registry := "..."` variable. Local dev and Jenkins agent both rely on ambient AWS credentials (env vars, instance profile, etc.) — no credential plumbing in the library.
 - **Required Jenkins plugins:** Pipeline (declarative), Git, HTTP Request, Pipeline Utility Steps, Credentials Plugin, Warnings Next Generation (`recordIssues` with `grype` and `sarif` tools).
 
 ## Known gaps

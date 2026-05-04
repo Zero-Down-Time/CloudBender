@@ -41,6 +41,12 @@ _validate-arch arch="amd64":
 _git-debug: (_validate-arch arch)
   @echo "tag: {{git_tag}} branch: {{ git_branch }} on {{arch}}".
 
+# Echo the bare git_tag value (used by container build/push and by Jenkins
+# to capture the actual published tag for downstream stages).
+[no-cd]
+_print-tag:
+  @echo {{ git_tag }}
+
 # pull latest shared .ci subtree
 ci-pull-upstream:
 	git subtree pull --prefix .ci ssh://git@git.zero-downtime.net/ZeroDownTime/ci-tools-lib.git main --squash -m "Merge latest ci-tools-lib"
