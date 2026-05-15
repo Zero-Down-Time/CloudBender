@@ -5,12 +5,24 @@ import 'git.just'
 prepare:
   cargo fetch
 
-lint:
-  cargo clippy --workspace -r
+# requires 1.45 [arg('target', pattern='(release)?')]
+lint target="":
+  #!/usr/bin/env sh
+  if [ "{{ target }}" == "release" ]; then
+    cargo clippy --workspace --locked --all-targets --release -- -D warnings
+  else
+    cargo clippy --workspace --locked --all-targets -- -D warnings
+  fi
   cargo deny check -s
 
-fmt:
-  cargo fmt
+# requires 1.45 [arg('target', pattern='(release)?')]
+fmt target="":
+  #!/usr/bin/env sh
+  if [ "{{ target }}" == "release" ]; then
+    cargo fmt --check
+  else
+    cargo fmt
+  fi
 
 # requires 1.45 [arg('target', pattern='(release)?')]
 build target="":
@@ -20,9 +32,17 @@ build target="":
   else
     cargo auditable build --locked
   fi
+  if [ -n "$RUSTC_WRAPPER" ]; then sccache --show-stats || true; fi
 
-test:
-  cargo test
+# requires 1.45 [arg('target', pattern='(release)?')]
+test target="":
+  #!/usr/bin/env sh
+  if [ "{{ target }}" == "release" ]; then
+    cargo test --locked --release
+  else
+    cargo test --locked
+  fi
+  if [ -n "$RUSTC_WRAPPER" ]; then sccache --show-stats || true; fi
 
 clean:
   cargo clean

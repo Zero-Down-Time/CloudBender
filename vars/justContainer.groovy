@@ -10,17 +10,26 @@ def call(Map config = [:]) {
           label 'podman-aws-grype'
         }
       }
+      parameters {
+        booleanParam(name: 'FORCE_BUILD', defaultValue: false, description: 'Run all stages even when no source paths matched buildOnly')
+      }
       environment {
         TMP_DIR = "_tmp"
       }
       stages {
         stage('Prepare') {
           steps {
-            script { container.prepare(config) }
+            script {
+              container.prepare(config + [forceBuild: (params.FORCE_BUILD == true) || (config.forceBuild ?: false)])
+            }
           }
         }
 
         stage('Lint') {
+          when {
+            expression { currentBuild.description != 'SKIP' }
+            expression { currentBuild.currentResult != 'FAILURE' }
+          }
           steps {
             script { container.lint(config) }
           }
@@ -28,6 +37,7 @@ def call(Map config = [:]) {
 
         stage('Build') {
           when {
+            expression { currentBuild.description != 'SKIP' }
             expression { currentBuild.currentResult != 'FAILURE' }
           }
           steps {
@@ -79,6 +89,7 @@ def call(Map config = [:]) {
 
       post {
         cleanup {
+          script { container.cleanBuilder(config) }
           sh "rm -rf ${TMP_DIR}"
         }
       }
