@@ -5,17 +5,20 @@ import 'git.just'
 prepare:
   uv sync --locked --no-install-project --no-editable
 
-fmt:
+# requires 1.45 [arg('target', pattern='(release)?')]
+fmt target="":
   uv run --extra dev autopep8 -ir .
 
-lint:
+# requires 1.45 [arg('target', pattern='(release)?')]
+lint target="":
   uv run --extra dev flake8 .
 
 # requires 1.45 [arg('target', pattern='(release)?')]
 build target="":
   uv build --clear
 
-test:
+# requires 1.45 [arg('target', pattern='(release)?')]
+test target="":
   uv run --extra dev pytest --log-cli-level=DEBUG
 
 clean:

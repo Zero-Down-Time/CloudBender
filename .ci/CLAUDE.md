@@ -21,7 +21,7 @@ Two layers:
 
 **Pipeline (declarative, in `vars/justContainer.groovy`):** Prepare → Lint → Build → Test → Scan → Push → Cleanup.
 
-- `currentBuild.description == 'SKIP'` is the cross-stage "no source changes, skip downstream" signal, set by `container.build` when no changed files match `buildOnly` patterns.
+- `currentBuild.description == 'SKIP'` is the cross-stage "no source changes, skip downstream" signal, set by `container.prepare` when no changed files match `buildOnly` patterns (and `forceBuild` is unset). Gates Lint, Build, Test, Scan, Push, cleanup.
 - `Push` stage additionally gated by `not { changeRequest() }` — PRs never push.
 
 ## Files
@@ -33,8 +33,8 @@ Two layers:
 | `git.just` | `git_tag` / `git_branch` / `git_repo_name` derivation, `tag` with sanitized branch suffix when not on main/master, arch validation (amd64/arm64), `_addCommitTagPush`, `_print-tag` (echoes `git_tag` — reachable as `container::_print-tag` via import), `cleanup-tags`, `ci-pull-upstream` |
 | `common.just` | `scan-src` (source betterleaks). Imported by language modules so every language toolchain gets it. |
 | `container.just` | `build`, `scan` (image betterleaks + grype), `ecr-login`, `push` (multi-arch manifest), `clean`, `rm-remote-untagged`, `create-repo`. Recipes that touch a registry take it as their **first positional argument** (`registry`). Public ECR (`public.ecr.aws/...`) and private ECR (`*.dkr.ecr.<region>.amazonaws.com`) auto-detected by URL shape. `build`/`scan`/`clean` take no registry and stay reachable directly. Consumers typically define `registry := "..."` in their root justfile and either pass it explicitly (`just container::push {{ registry }} <image>`) or wrap the recipes locally; the Jenkins glue propagates the `registry:` config field as the first positional. |
-| `builder.just` | `update-builder` (build toolchain image), `use-builder <target>` (run target inside toolchain container via `buildah from` + `buildah run -v $(pwd):/app`) |
-| `rust.just` | imports `common.just`; `prepare` (cargo fetch), `lint` (clippy + cargo-deny), `build [release]` (cargo auditable), `test`, `cut-release` |
+| `builder.just` | `update-builder` (build toolchain image), `use-builder <target>` (run target inside toolchain container, reused across pipeline stages via `buildah from --name local-<toolchain>-builder-$BUILD_TAG`; mounts repo root at `/app` and `$SCCACHE_DIR`/`~/.cache/sccache` at `/root/.cache/sccache`), `clean-builder` (tear down the per-pipeline container; called from `post.cleanup` in `justContainer`). |
+| `rust.just` | imports `common.just`; `prepare` (cargo fetch), `lint` (clippy + cargo-deny), `build [release]` (cargo auditable), `test`, `cut-release`. Toolchain image (`Dockerfile.rust`) sets `RUSTC_WRAPPER=/usr/bin/sccache`, so the shared cache mount in `use-builder` accelerates Build/Test across stages and across pipeline runs on the same agent. |
 | `python.just` | imports `common.just`; uv-based: `prepare` (uv sync --locked), `lint` (flake8), `build` (uv build), `test` (uv run pytest), `upload` (uv publish) |
 | `gitops.just` | GitOps writeback: single `update` recipe (clone + idempotency + edit + rebase-retry push, optional PR mode). Commit message read from `$GITOPS_COMMIT_MESSAGE` (set by `vars/updateGitops.groovy`, which owns the default-message format). PR opening lives in `vars/gitea.groovy` (`gitea.openPullRequest`). Updates spec is a JSON file (`{ "<file>": { "<yq-path>": "<value>" } }`) so push-mode promotions reproduce locally. Tools required: `git`, `yq` (mikefarah), `jq`. |
 
@@ -43,7 +43,7 @@ Two layers:
 | File | Purpose |
 |------|---------|
 | `justContainer.groovy` | **Current entry point** — declarative pipeline composing per-stage helpers |
-| `container.groovy` | Per-stage helpers consumed by `justContainer.groovy`. Methods (invoked as `container.<stage>(config)` inside `script { }`): `prepare` (gitea changeset → stash, `protectBuildFiles`, optional `just prepare`); `lint` (`just scan-src` + recordIssues, then `just lint`); `build` (unstash, gate on `pathsChanged(buildOnly)` or `forceBuild`, run `just container::build`; sets `currentBuild.description = 'SKIP'` when nothing matches); `test` (`just test` if defined); `scan` (`just container::scan` + grype/betterleaks recordIssues); `push` (`just container::push <registry>` + `rm-remote-untagged`; `registry` required); `clean` (`just container::clean`). |
+| `container.groovy` | Per-stage helpers consumed by `justContainer.groovy`. Methods (invoked as `container.<stage>(config)` inside `script { }`): `prepare` (gitea changeset, gate on `pathsChanged(buildOnly)` or `forceBuild` → sets `currentBuild.description = 'SKIP'` and returns early when nothing matches, otherwise `protectBuildFiles`, `just update-builder` if `needBuilder`, optional `just prepare`); `lint` (`just scan-src` + recordIssues, then `just lint`); `build` (`just container::build` — runs only when prepare did not SKIP); `test` (`just test` if defined); `scan` (`just container::scan` + grype/betterleaks recordIssues); `push` (`just container::push <registry>` + `rm-remote-untagged`; `registry` required); `clean` (`just container::clean`). |
 | `gitea.groovy` | Gitea REST client: parses `GIT_URL`, fetches PR files (`/pulls/N/files`) or commit diff (`/compare/base...head`), opens/reuses PRs (`openPullRequest`); `pathsChanged(files, patterns)` regex-matches |
 | `protectBuildFiles.groovy` | On PRs only: `git checkout origin/<target> -- <files>` to overwrite CI files from target branch (defends against PRs modifying their own CI) |
 | `quietCheckout.groovy` | Manual `git fetch/checkout --quiet` replicating Git plugin behaviour with less console noise |
@@ -81,6 +81,8 @@ sh "if just --summary | grep -q lint; then just lint; fi"
 ### Builder container indirection
 
 `needBuilder: true` in the config makes Prepare/Lint/Build run targets inside `local-{toolchain}-builder` via `just use-builder <target>`. The agent only needs Podman/Buildah, not language toolchains.
+
+One working container is created per pipeline (named `local-<toolchain>-builder-<sanitized $BUILD_TAG>`) and reused across stages, so toolchain caches (cargo target, sccache) survive Prepare → Lint → Build → Test. `post.cleanup` calls `container.cleanBuilder(config)` which runs `just clean-builder` to remove it on any outcome. The sccache cache dir on the agent (`$SCCACHE_DIR` or `~/.cache/sccache`) is bind-mounted into the container, so cache survives `clean-builder` and is shared with anything else on the agent using sccache.
 
 ### Multi-arch
 

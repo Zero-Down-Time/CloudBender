@@ -1,28 +1,32 @@
 // Container build stages — composed by justContainer.groovy.
 // Each method is invoked as `container.<stage>(config)`.
 
-// Prepare stage: gather changeSet, protect build files, run `just prepare`
+// Prepare stage: gather changeSet, gate downstream stages on buildOnly,
+// protect build files, run `just prepare`. Sets currentBuild.description = 'SKIP'
+// when no changed files match buildOnly (and forceBuild is not set).
 def prepare(Map config = [:]) {
     def workDir     = config.workDir     ?: '.'
     def tmpDir      = config.tmpDir      ?: '_tmp'
     def debug       = config.debug       ?: false
     def needBuilder = config.needBuilder ?: false
+    def buildOnly   = config.buildOnly   ?: ['.*']
+    def forceBuild  = config.forceBuild != null ? config.forceBuild : (config.force_build ?: false)
     def justfilePath    = workDir == '.' ? '.justfile' : "${workDir}/.justfile"
     def jenkinsfilePath = workDir == '.' ? 'Jenkinsfile' : "${workDir}/Jenkinsfile"
     def protect     = config.protect     ?: [justfilePath, jenkinsfilePath, '.ci/**']
-    def stashName   = config.stashName   ?: 'changeSet'
 
     def files = gitea.getChangeset(debug: debug)
 
-    dir(workDir) {
-        sh "mkdir -p '${tmpDir}'"
-        writeJSON file: "${tmpDir}/changeSet.json", json: files
-        stash includes: "${tmpDir}/changeSet.json", name: stashName
+    if (!forceBuild && !gitea.pathsChanged(files: files, patterns: buildOnly, debug: debug)) {
+        echo "No changed files matching any of: ${buildOnly.join(', ')}. Skipping downstream stages."
+        currentBuild.description = 'SKIP'
+        return
     }
 
     protectBuildFiles(protect)
 
     dir(workDir) {
+        sh "mkdir -p '${tmpDir}'"
         if (needBuilder) {
             sh "just update-builder"
             sh "if just --summary | grep -q prepare; then just use-builder prepare; fi"
@@ -57,42 +61,31 @@ def lint(Map config = [:]) {
         )
 
         if (needBuilder) {
-            sh "if just --summary | grep -q lint; then just use-builder lint; fi"
+            sh "if just --summary | grep -q fmt; then just use-builder fmt release; fi"
+            sh "if just --summary | grep -q lint; then just use-builder lint release; fi"
         } else {
-            sh "if just --summary | grep -q lint; then just lint; fi"
+            sh "if just --summary | grep -q fmt; then just fmt release; fi"
+            sh "if just --summary | grep -q lint; then just lint release; fi"
         }
     }
 }
 
-// Build stage: changeSet gate + `just container::build`. Returns the built tag,
-// or null when the stage short-circuits (sets currentBuild.description = 'SKIP').
+// Build stage: `just container::build`. The buildOnly/forceBuild gate runs
+// in `prepare`; if it short-circuits, this stage is skipped via the SKIP flag.
 def build(Map config = [:]) {
     def workDir     = config.workDir     ?: '.'
-    def tmpDir      = config.tmpDir      ?: '_tmp'
     def imageName   = config.imageName   ?: ''
-    def buildOnly   = config.buildOnly   ?: ['.*']
-    def forceBuild  = config.forceBuild != null ? config.forceBuild : (config.force_build ?: false)
     def needBuilder = config.needBuilder ?: false
-    def debug       = config.debug       ?: false
-    def stashName   = config.stashName   ?: 'changeSet'
 
     def imageArg = imageName ? " '${imageName}'" : ''
-    String tag = null
+    String tag
 
     dir(workDir) {
-        unstash stashName
-        def files = readJSON file: "${tmpDir}/changeSet.json"
-
-        if (forceBuild || gitea.pathsChanged(files: files, patterns: buildOnly, debug: debug)) {
-            if (needBuilder) {
-                sh "just use-builder build release"
-            }
-            sh "just container::build${imageArg}"
-            tag = sh(returnStdout: true, script: 'just container::_print-tag').trim()
-        } else {
-            echo "No changed files matching any of: ${buildOnly.join(', ')}. No build required."
-            currentBuild.description = 'SKIP'
+        if (needBuilder) {
+            sh "just use-builder build release"
         }
+        sh "just container::build${imageArg}"
+        tag = sh(returnStdout: true, script: 'just container::_print-tag').trim()
     }
     return tag
 }
@@ -104,9 +97,9 @@ def test(Map config = [:]) {
 
     dir(workDir) {
         if (needBuilder) {
-            sh "if just --summary | grep -q test; then just use-builder test; fi"
+            sh "if just --summary | grep -q test; then just use-builder test release; fi"
         } else {
-            sh "if just --summary | grep -q test; then just test; fi"
+            sh "if just --summary | grep -q test; then just test release; fi"
         }
     }
 }
@@ -185,6 +178,18 @@ def clean(Map config = [:]) {
 
     dir(workDir) {
         sh "just container::clean${imageArg}"
+    }
+}
+
+// Post-pipeline: remove the reusable builder container created by `use-builder`.
+// Called from `post.cleanup` so the container is torn down even on abort/failure.
+def cleanBuilder(Map config = [:]) {
+    def workDir     = config.workDir     ?: '.'
+    def needBuilder = config.needBuilder ?: false
+    if (!needBuilder) return
+
+    dir(workDir) {
+        sh "just clean-builder"
     }
 }
 
