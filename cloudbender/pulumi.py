@@ -60,9 +60,11 @@ def pulumi_ws(func):
 
             # add all artifact_paths/pulumi to the search path for easier
             # imports in the pulumi code
+            pulumi_paths = []
             for artifacts_path in self.ctx["artifact_paths"]:
                 _path = "{}/pulumi".format(artifacts_path.resolve())
                 sys.path.append(_path)
+                pulumi_paths.append(_path)
 
             # Try local implementation first, similar to Jinja2 mode
             _found = False
@@ -190,7 +192,12 @@ def pulumi_ws(func):
                 name=project_name, runtime="python", backend=pulumi.automation.ProjectBackend(url=pulumi_backend)
             )
 
+            existing = os.environ.get("PYTHONPATH", "")
+
             self.pulumi_ws_opts = pulumi.automation.LocalWorkspaceOptions(
+                env_vars={"PULUMI_PYTHON_CMD": f"{os.environ['HOME']}/.venv/bin/python",
+                          "PYTHONPATH": os.pathsep.join(pulumi_paths + ([existing] if existing else [])),
+                          },
                 work_dir=self.work_dir,
                 project_settings=project_settings,
                 stack_settings={self.pulumi_stackname: stack_settings},

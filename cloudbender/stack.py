@@ -827,7 +827,8 @@ class Stack(object):
                         break
 
             if state_version and state_version < Version("7.0.0"):
-                logger.info(f"🔄 Migrating stack from pulumi-aws {state_version} to v7...")
+                logger.info(
+                    f"🔄 Migrating stack from pulumi-aws {state_version} to v7...")
                 # Run refresh first to sync state
                 stack.refresh(on_output=self._log_pulumi)
 
