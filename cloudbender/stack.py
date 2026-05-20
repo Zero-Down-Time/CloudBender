@@ -17,6 +17,9 @@ from botocore.exceptions import ClientError
 
 import ruamel.yaml
 
+import typing
+from pydantic import BaseModel
+
 from .utils import dict_merge, search_refs, ensure_dir, get_s3_url
 from .connection import BotoConnection
 from .jinja import JinjaEnv, read_config_file, render_docs
@@ -447,13 +450,13 @@ class Stack(object):
                         yaml_contents.write(self.cfn_template)
 
                 except ClientError as e:
-                    logger.error(
-                        "Could not find template file on S3: {}/{}, {}".format(
+                    logger.warning(
+                        "Could not find template file on S3: {}/{}, {} - falling back to local copy".format(
                             bucket, path, e
                         )
                     )
 
-            else:
+            if not self.cfn_template:
                 yaml_file = os.path.join(
                     self.ctx["template_path"],
                     self.rel_path,
@@ -631,13 +634,8 @@ class Stack(object):
     @pulumi_ws
     def docs(self, template=False):
         """Read rendered template, parse documentation fragments, eg. parameter description
-        and create a mardown doc file for the stack. Same idea as helm-docs for the values.yaml
+        and print a mardown doc for the stack. Same idea as helm-docs for the values.yaml
         """
-
-        doc_file = os.path.join(
-            self.ctx["docs_path"], self.rel_path, self.stackname + ".md"
-        )
-        ensure_dir(os.path.join(self.ctx["docs_path"], self.rel_path))
 
         # For pulumi we use the embedded docstrings
         if self.mode == "pulumi":
@@ -648,13 +646,12 @@ class Stack(object):
                 outputs = {}
                 pass
 
+            docs_out = ""
             if vars(self._pulumi_code)["__doc__"]:
-                docs_out = render_docs(
+                docs_out = docs_out + render_docs(
                     vars(
                         self._pulumi_code)["__doc__"],
                     resolve_outputs(outputs))
-            else:
-                docs_out = "No stack documentation available."
 
             # collect all __doc__ from available _execute_ functions
             headerAdded = False
@@ -665,6 +662,10 @@ class Stack(object):
                         headerAdded = True
                     docstring = vars(self._pulumi_code)[k].__doc__
                     docs_out = docs_out + f"\n* {docstring}"
+
+            schema = vars(self._pulumi_code).get("STACKCONFIG")
+            if isinstance(schema, type) and issubclass(schema, BaseModel):
+                docs_out = docs_out + "\n" + self._describe_stackconfig(schema)
 
         # Cloudformation we use the stack-doc template similar to helm-docs
         else:
@@ -713,13 +714,7 @@ class Stack(object):
 
             docs_out = template.render(**data)
 
-        # Finally write docs to file
-        with open(doc_file, "w") as doc_contents:
-            doc_contents.write(docs_out)
-            logger.info(
-                "Wrote documentation for %s to %s",
-                self.stackname,
-                doc_file)
+        print(docs_out)
 
     def resolve_parameters(self):
         """Renders parameters for the stack based on the source template and the environment configuration"""
@@ -1393,3 +1388,56 @@ class Stack(object):
             pass
 
         return kwargs
+
+    # Render a schema as a grouped markdown table; scalars first under
+    # "Core", nested submodels each under their own H3.
+    def _describe_stackconfig(self, schema, title=None):
+        def _typename(ann):
+            origin = typing.get_origin(ann)
+            args = typing.get_args(ann)
+            if origin is typing.Literal:
+                return " \\| ".join(repr(a) for a in args)
+            if origin in (list, typing.List):
+                inner = _typename(args[0]) if args else "Any"
+                return f"list[{inner}]"
+            return getattr(ann, "__name__", str(ann))
+
+        def _default(field):
+            if field.is_required():
+                return "—"
+            if field.default_factory is not None:
+                return repr(field.default_factory())
+            return repr(field.default)
+
+        def _row(path, field):
+            return f"| `{path}` | `{_typename(field.annotation)}` | `{_default(field)}` | {field.description or ''} |"
+
+        def _table(items, prefix=""):
+            out = ["| Path | Type | Default | Description |", "|---|---|---|---|"]
+            for name, f in items:
+                out.append(_row(f"{prefix}{name}", f))
+            return "\n".join(out)
+
+        scalars, nested = [], []
+        for name, f in schema.model_fields.items():
+            ann = f.annotation
+            if isinstance(ann, type) and issubclass(ann, BaseModel):
+                nested.append((name, f))
+            else:
+                scalars.append((name, f))
+
+        out = [f"# {title or schema.__name__}\n"]
+        if schema.__doc__:
+            out.append(schema.__doc__.strip() + "\n")
+        out.append("## Inputs\n")
+        if scalars:
+            out.append("### Core\n")
+            out.append(_table(scalars) + "\n")
+        for name, f in nested:
+            sub = f.annotation
+            sub_items = list(sub.model_fields.items())
+            out.append(f"### `{name}`\n")
+            if sub.__doc__:
+                out.append(sub.__doc__.strip() + "\n")
+            out.append(_table(sub_items, prefix=f"{name}.") + "\n")
+        return "\n".join(out)

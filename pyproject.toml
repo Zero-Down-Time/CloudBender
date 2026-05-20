@@ -16,6 +16,7 @@ dependencies = [
         "boto3",
         "mock",
         "Jinja2>=3",
+        "pydantic",
         "click",
         "pexpect",
         "python-minifier",

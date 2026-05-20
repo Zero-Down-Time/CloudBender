@@ -176,9 +176,11 @@ def pulumi_ws(func):
             )
 
             # inject all parameters as config in the <Conglomerate> namespace
+            # ensure camelCase until we are 100% Pulumi
             for p in self.parameters:
+                _p = p[:1].lower() + p[1:]
                 self.pulumi_config[
-                    "{}:{}".format(self.parameters["Conglomerate"], p)
+                    "{}:{}".format(self.parameters["Conglomerate"], _p)
                 ] = self.parameters[p]
 
             stack_settings = pulumi.automation.StackSettings(

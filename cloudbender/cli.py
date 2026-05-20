@@ -392,7 +392,17 @@ def sort_stacks(cb, stacks):
             continue
 
         # To resolve dependencies we have to read each template
-        s.read_template_file()
+        try:
+            s.read_template_file()
+        except FileNotFoundError:
+            # Template gone (e.g. already partially deleted); cannot resolve deps,
+            # but still include the stack so the action (e.g. delete) can proceed.
+            logger.warning(
+                "No template for stack {}, skipping dependency resolution".format(
+                    s.id)
+            )
+            data[s.id] = set()
+            continue
         deps = []
         for d in s.dependencies:
             # For now we assume deps are artifacts so we prepend them with our local profile and region to match stack.id
