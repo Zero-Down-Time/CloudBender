@@ -1114,7 +1114,12 @@ class Stack(object):
     def get_config(self, key):
         """Get a config or secret"""
 
-        print(self._get_pulumi_stack().get_config(key, path=True).value)
+        # Parameters are exposed to Pulumi camelCased (see pulumi_ws), mirror
+        # that on the root segment to read values stored via set_config
+        root, sep, leaf = key.partition(".")
+        _key = root[:1].lower() + root[1:] + sep + leaf
+
+        print(self._get_pulumi_stack().get_config(_key, path=True).value)
 
     def create_change_set(self, change_set_name):
         """Creates a Change Set with the name ``change_set_name``."""
