@@ -1,4 +1,4 @@
-@Library('ci-tools-lib') _
+@Library('zdt-ci-tools') _
 
 justContainer(
   registry: 'public.ecr.aws/zero-downtime',
