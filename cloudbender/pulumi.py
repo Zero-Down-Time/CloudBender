@@ -4,6 +4,7 @@ import re
 import shutil
 import tempfile
 import importlib
+import click
 import pulumi
 import subprocess
 import semver
@@ -208,11 +209,22 @@ def pulumi_ws(func):
 
             # self.pulumi_workspace = pulumi.automation.LocalWorkspace(self.pulumi_ws_opts)
 
-        response = func(self, *args, **kwargs)
+        try:
+            response = func(self, *args, **kwargs)
 
-        # Cleanup temp workspace
-        if self.work_dir and os.path.exists(self.work_dir):
-            shutil.rmtree(self.work_dir)
+        except pulumi.automation.errors.CommandError:
+            # Streamed operations already surface Pulumi's diagnostics via
+            # on_output (_log_pulumi); drop the exception's duplicate stderr dump.
+            if func.__name__ in ("create", "preview", "refresh", "delete"):
+                logger.error(
+                    "Pulumi {} failed for {}".format(func.__name__, self.stackname))
+                raise click.Abort() from None
+            raise
+
+        finally:
+            # Cleanup temp workspace
+            if self.work_dir and os.path.exists(self.work_dir):
+                shutil.rmtree(self.work_dir)
 
         return response
 

@@ -77,6 +77,7 @@ class Stack(object):
         self.status = None
         self.store_outputs = False
         self.dependencies = set()
+        self.events = []
         self.hooks = {
             "post_create": [],
             "post_update": [],
@@ -954,9 +955,20 @@ class Stack(object):
         """Preview a Pulumi stack up operation"""
 
         kwargs = self._set_pulumi_args()
-        self._get_pulumi_stack(create=True).preview(**kwargs)
+        ret = self._get_pulumi_stack(create=True).preview(**kwargs)
 
-        return
+    #   for e in self.events:
+    #       if e.resource_pre_event:
+    #           md = e.resource_pre_event.metadata
+    #           print(md.op, md.urn, md.diffs)   # 'create'/'update'/'delete', changed props
+    #       if e.diagnostic_event and e.diagnostic_event.severity == "error":
+    #           print("ERR:", e.diagnostic_event.message)
+    #       if e.summary_event:
+    #           print(e.summary_event.resource_changes)
+
+    #   print(ret.change_summary)
+
+        return ret
 
     @pulumi_ws
     def execute(self, function, args):
@@ -1332,6 +1344,9 @@ class Stack(object):
 
         return kwargs
 
+    def _add_event(self, event):
+        self.events.append(event)
+
     def _log_pulumi(self, text):
         text = re.sub(
             r"pulumi:pulumi:Stack\s*{}-{}\s*".format(
@@ -1367,6 +1382,7 @@ class Stack(object):
         return pulumi_stack
 
     def _set_pulumi_args(self, kwargs={}):
+        kwargs["on_event"] = self._add_event
         kwargs["on_output"] = self._log_pulumi
         kwargs["policy_packs"] = []
         kwargs["policy_pack_configs"] = []

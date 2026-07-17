@@ -151,19 +151,22 @@ def _region_default_ids(session, region):
             region_ids.update(
                 s["SubnetId"]
                 for s in ec2.describe_subnets(
-                    Filters=vpc_f + [{"Name": "default-for-az", "Values": ["true"]}]
+                    Filters=vpc_f +
+                    [{"Name": "default-for-az", "Values": ["true"]}]
                 )["Subnets"]
             )
             region_ids.update(
                 r["RouteTableId"]
                 for r in ec2.describe_route_tables(
-                    Filters=vpc_f + [{"Name": "association.main", "Values": ["true"]}]
+                    Filters=vpc_f +
+                    [{"Name": "association.main", "Values": ["true"]}]
                 )["RouteTables"]
             )
             region_ids.update(
                 g["GroupId"]
                 for g in ec2.describe_security_groups(
-                    Filters=vpc_f + [{"Name": "group-name", "Values": ["default"]}]
+                    Filters=vpc_f +
+                    [{"Name": "group-name", "Values": ["default"]}]
                 )["SecurityGroups"]
             )
             region_ids.update(
@@ -177,7 +180,8 @@ def _region_default_ids(session, region):
             )["InternetGateways"]
             region_ids.update(i["InternetGatewayId"] for i in igws)
         except Exception as e:
-            log("  ! network describe failed for %s in %s: %s" % (vpc_id, region, e))
+            log("  ! network describe failed for %s in %s: %s" %
+                (vpc_id, region, e))
     region_ids.update(_default_sg_rule_ids(ec2, region))
     return region_ids
 
@@ -189,9 +193,10 @@ def _default_sg_rule_ids(ec2, region):
         sg_pages = ec2.get_paginator("describe_security_groups").paginate(
             Filters=[{"Name": "group-name", "Values": ["default"]}]
         )
-        default_sg_ids = [g["GroupId"] for page in sg_pages for g in page["SecurityGroups"]]
+        default_sg_ids = [g["GroupId"]
+                          for page in sg_pages for g in page["SecurityGroups"]]
         for i in range(0, len(default_sg_ids), 200):
-            chunk = default_sg_ids[i : i + 200]
+            chunk = default_sg_ids[i: i + 200]
             rule_pages = ec2.get_paginator("describe_security_group_rules").paginate(
                 Filters=[{"Name": "group-id", "Values": chunk}]
             )
@@ -267,7 +272,8 @@ def build_report(session, view_arn):
     log("Querying Resource Explorer (all regions)...")
     warn_if_not_aggregator(session)
     raw, regions_seen = collect(session, view_arn)
-    log("  fetched %d resources across %d regions" % (len(raw), len(regions_seen)))
+    log("  fetched %d resources across %d regions" %
+        (len(raw), len(regions_seen)))
     if len(raw) >= RE_RESULT_LIMIT:
         log(
             "  ! WARNING: hit Resource Explorer's %d-result limit; scan is "
