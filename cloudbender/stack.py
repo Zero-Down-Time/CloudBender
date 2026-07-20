@@ -17,6 +17,9 @@ from botocore.exceptions import ClientError
 
 import ruamel.yaml
 
+import rich.console
+import rich.table
+
 import typing
 from pydantic import BaseModel
 
@@ -978,16 +981,20 @@ class Stack(object):
         kwargs = self._set_pulumi_args()
         ret = self._get_pulumi_stack(create=True).preview(**kwargs)
 
-        from rich.table import Table
-        from rich.console import Console
-
-        table = Table("Op", "Type", "Name")
+        table = rich.table.Table("Op", "Type", "Name")
         for e in self.events:
             if e.resource_pre_event:
                 md = e.resource_pre_event.metadata
                 if md.op != "same":
                     table.add_row(md.op, md.type, md.urn.split("::")[-1])
-        Console().print(table)
+
+        # Only emit the change summary if something actually changes
+        if table.row_count:
+            console = rich.console.Console()
+            with console.capture() as capture:
+                console.print(table)
+            for line in capture.get().splitlines():
+                self._log_pulumi(line)
 
         return ret
 
