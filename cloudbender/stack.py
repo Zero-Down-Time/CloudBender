@@ -179,16 +179,18 @@ class Stack(object):
                 "libraries must be a list of {{ url, version }} entries"
             )
         for lib in self.libraries:
-            if not isinstance(lib, dict) or "url" not in lib or "version" not in lib:
+            if not isinstance(lib, dict) or "url" not in lib:
                 raise ParameterIllegalValue(
-                    "Each libraries entry requires an 'url' and 'version'"
+                    "Each libraries entry requires an 'url'"
                 )
             if not isinstance(lib["url"], str) or "://" not in lib["url"]:
                 raise ParameterIllegalValue(
                     "libraries url must be scheme-qualified, e.g. s3://bucket/path/name"
                 )
-            if not isinstance(lib["version"], str):
+            if "version" in lib and not isinstance(lib["version"], str):
                 raise ParameterIllegalValue("libraries version must be a string")
+            if "optional" in lib and not isinstance(lib["optional"], bool):
+                raise ParameterIllegalValue("libraries optional must be a boolean")
 
         self.id = (self.profile, self.region, self.stackname)
         self.connection_manager = BotoConnection(self.profile, self.region)

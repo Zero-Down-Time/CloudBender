@@ -71,27 +71,38 @@ def pulumi_ws(func):
             pulumi_paths = []
             search_paths = []
             for lib in self.libraries:
-                lib_root = fetch_library(
-                    self.connection_manager,
-                    self.profile,
-                    self.region,
-                    lib["url"],
-                    lib["version"],
-                    self.work_dir,
-                )
+                try:
+                    lib_root = fetch_library(
+                        self.connection_manager,
+                        self.profile,
+                        self.region,
+                        lib["url"],
+                        lib.get("version", "latest"),
+                        self.work_dir,
+                        root=self.ctx["root"],
+                    )
 
-                pulumi_dir = lib_root / "pulumi"
-                if pulumi_dir.is_dir():
-                    pulumi_paths.append(str(pulumi_dir))
+                    pulumi_dir = lib_root / "pulumi"
+                    if pulumi_dir.is_dir():
+                        pulumi_paths.append(str(pulumi_dir))
 
-                for sub in ("pulumi", "artifacts"):
-                    _dir = lib_root / sub
-                    if _dir.is_dir():
-                        _path = str(_dir)
-                        search_paths.append(_path)
-                        if _path not in sys.path:
-                            sys.path.append(_path)
-                            appended.append(_path)
+                    for sub in ("pulumi", "artifacts"):
+                        _dir = lib_root / sub
+                        if _dir.is_dir():
+                            _path = str(_dir)
+                            search_paths.append(_path)
+                            if _path not in sys.path:
+                                sys.path.append(_path)
+                                appended.append(_path)
+
+                # optional libs may be absent or unreachable; skip on any
+                # failure to fetch/resolve them, otherwise surface the error
+                except Exception as e:
+                    if lib.get("optional"):
+                        logger.warning(
+                            "Skipping optional library {}: {}".format(lib["url"], e))
+                        continue
+                    raise
 
             # Import self.template from the first library providing it
             _found = False

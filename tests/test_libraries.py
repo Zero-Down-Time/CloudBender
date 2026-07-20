@@ -64,6 +64,49 @@ def test_fetch_unsupported_scheme(tmp_path):
                       "latest", str(tmp_path))
 
 
+def test_fetch_local_uses_path_directly(tmp_path):
+    lib = tmp_path / "mylib"
+    (lib / "pulumi").mkdir(parents=True)
+    (lib / "pulumi" / "vpc.py").write_text("x = 1\n")
+
+    dest = tmp_path / "workdir"
+    dest.mkdir()
+
+    lib_root = fetch_library(
+        None, None, None, "local://{}".format(lib), "latest", str(dest))
+
+    # returned as-is, nothing copied into the work dir
+    assert lib_root == lib.resolve()
+    assert (lib_root / "pulumi" / "vpc.py").is_file()
+    assert list(dest.iterdir()) == []
+
+
+def test_fetch_local_relative_to_root(tmp_path):
+    (tmp_path / "libs" / "net" / "pulumi").mkdir(parents=True)
+
+    lib_root = fetch_library(
+        None, None, None, "local://libs/net", "latest", "/tmp",
+        root=str(tmp_path))
+
+    assert lib_root == (tmp_path / "libs" / "net").resolve()
+
+
+def test_fetch_local_relative_falls_back_to_cwd(tmp_path, monkeypatch):
+    (tmp_path / "libs" / "net" / "pulumi").mkdir(parents=True)
+    monkeypatch.chdir(tmp_path)
+
+    lib_root = fetch_library(
+        None, None, None, "local://libs/net", "latest", "/tmp")
+
+    assert lib_root == (tmp_path / "libs" / "net").resolve()
+
+
+def test_fetch_local_missing(tmp_path):
+    with pytest.raises(FileNotFoundError):
+        fetch_library(None, None, None, "local://{}/nope".format(tmp_path),
+                      "latest", str(tmp_path))
+
+
 def test_fetch_rejects_path_traversal(tmp_path):
     conn = FakeConn(_make_targz({"../evil.py": "pwned\n"}))
     with pytest.raises(ValueError):

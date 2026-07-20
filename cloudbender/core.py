@@ -16,6 +16,7 @@ class CloudBender(object):
         self.sg = None
         self.all_stacks = []
         self.ctx = {
+            "root": self.root,
             "config_path": self.root.joinpath("config"),
             "template_path": self.root.joinpath("cloudformation"),
             "hooks_path": self.root.joinpath("hooks"),

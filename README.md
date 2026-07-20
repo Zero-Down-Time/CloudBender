@@ -116,11 +116,23 @@ Pulumi stack implementations are distributed as versioned library archives rathe
 libraries:
   - url: "s3://my-bucket/libs/vpc-lib"
     version: "1.2.3"
-  - url: "s3://my-bucket/libs/network-lib"
-    version: "latest"
+  - url: "s3://my-bucket/libs/network-lib"      # version defaults to "latest"
+  - url: "local://./libs/dev-lib"               # used in place, never fetched
+  - url: "s3://my-bucket/libs/extras"
+    optional: true                              # skipped if it cannot be fetched
 ```
 
-For each entry the archive `<url>-<version>.tar.gz` is fetched and unpacked into a temporary workspace. Each archive must contain a top-level `pulumi/` directory and may contain a sibling `artifacts/` directory; the stack's `template` (e.g. `vpc.py`) is imported from the **first** library that provides it. Every library's `pulumi/` and `artifacts/` folders are added to the Pulumi program's search path so it can import modules and locate bundled files/scripts. Only the `s3://` protocol is supported currently.
+Each entry supports:
+
+| Field | Required | Description |
+|---|---|---|
+| `url` | yes | Scheme-qualified location. Supported protocols: `s3://`, `local://` |
+| `version` | no | Archive version; defaults to `latest`. Ignored for `local://` |
+| `optional` | no | If `true`, provisioning proceeds even if the library cannot be found or fetched |
+
+For remote protocols the archive `<url>-<version>.tar.gz` is fetched and unpacked into a temporary workspace. `local://` points directly at an existing directory (relative paths resolve against the CloudBender project root, i.e. `--dir`) and is neither fetched nor copied — useful for local development.
+
+Each library root must contain a top-level `pulumi/` directory and may contain a sibling `artifacts/` directory; the stack's `template` (e.g. `vpc.py`) is imported from the **first** library that provides it. Every library's `pulumi/` and `artifacts/` folders are added to the Pulumi program's search path so it can import modules and locate bundled files/scripts.
 
 ## CLI Reference
 
