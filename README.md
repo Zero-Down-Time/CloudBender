@@ -108,6 +108,20 @@ Each stack operates in one of three modes:
 | `pulumi` | Pulumi Python IaC |
 | `Piped` | CloudFormation with inter-stack reference injection |
 
+### Pulumi Libraries
+
+Pulumi stack implementations are distributed as versioned library archives rather than kept in the local project tree. Declare them per stack (or inherit from the stack group) via the top-level `libraries` key:
+
+```yaml
+libraries:
+  - url: "s3://my-bucket/libs/vpc-lib"
+    version: "1.2.3"
+  - url: "s3://my-bucket/libs/network-lib"
+    version: "latest"
+```
+
+For each entry the archive `<url>-<version>.tar.gz` is fetched and unpacked into a temporary workspace. Each archive must contain a top-level `pulumi/` directory and may contain a sibling `artifacts/` directory; the stack's `template` (e.g. `vpc.py`) is imported from the **first** library that provides it. Every library's `pulumi/` and `artifacts/` folders are added to the Pulumi program's search path so it can import modules and locate bundled files/scripts. Only the `s3://` protocol is supported currently.
+
 ## CLI Reference
 
 ```

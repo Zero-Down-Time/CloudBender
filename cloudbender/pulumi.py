@@ -4,6 +4,7 @@ import re
 import shutil
 import tempfile
 import importlib
+import importlib.util
 import click
 import pulumi
 import subprocess
@@ -14,6 +15,7 @@ from functools import wraps
 import logging
 
 from . import __version__
+from .libraries import fetch_library
 
 logger = logging.getLogger(__name__)
 
@@ -53,48 +55,59 @@ def resolve_outputs(outputs):
 def pulumi_ws(func):
     @wraps(func)
     def decorated(self, *args, **kwargs):
+        # search paths we add for the import below, removed again on cleanup
+        appended = []
+
         # setup temp workspace
         if self.mode == "pulumi":
             self.work_dir = tempfile.mkdtemp(
                 dir=tempfile.gettempdir(), prefix="cloudbender-"
             )
 
-            # add all artifact_paths/pulumi to the search path for easier
-            # imports in the pulumi code
+            # Fetch configured libraries and collect their search paths.
+            # pulumi_paths holds the pulumi/ folders used for template
+            # discovery; search_paths additionally exposes each library's
+            # artifacts/ folder so the Pulumi code can locate files/scripts.
             pulumi_paths = []
-            for artifacts_path in self.ctx["artifact_paths"]:
-                _path = "{}/pulumi".format(artifacts_path.resolve())
-                sys.path.append(_path)
-                pulumi_paths.append(_path)
+            search_paths = []
+            for lib in self.libraries:
+                lib_root = fetch_library(
+                    self.connection_manager,
+                    self.profile,
+                    self.region,
+                    lib["url"],
+                    lib["version"],
+                    self.work_dir,
+                )
 
-            # Try local implementation first, similar to Jinja2 mode
+                pulumi_dir = lib_root / "pulumi"
+                if pulumi_dir.is_dir():
+                    pulumi_paths.append(str(pulumi_dir))
+
+                for sub in ("pulumi", "artifacts"):
+                    _dir = lib_root / sub
+                    if _dir.is_dir():
+                        _path = str(_dir)
+                        search_paths.append(_path)
+                        if _path not in sys.path:
+                            sys.path.append(_path)
+                            appended.append(_path)
+
+            # Import self.template from the first library providing it
             _found = False
-            try:
-                _stack = importlib.import_module(
-                    "config.{}.{}".format(
-                        self.rel_path, self.template).replace(
-                        "/", "."))
-                _found = True
-
-            except ImportError:
-                for artifacts_path in self.ctx["artifact_paths"]:
-                    try:
-                        spec = importlib.util.spec_from_file_location(
-                            "_stack",
-                            "{}/pulumi/{}.py".format(
-                                artifacts_path.resolve(), self.template
-                            ),
-                        )
-                        _stack = importlib.util.module_from_spec(spec)
-                        spec.loader.exec_module(_stack)
-                        _found = True
-
-                    except FileNotFoundError:
-                        pass
+            for _path in pulumi_paths:
+                candidate = os.path.join(_path, "{}.py".format(self.template))
+                if os.path.exists(candidate):
+                    spec = importlib.util.spec_from_file_location(
+                        "_stack", candidate)
+                    _stack = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(_stack)
+                    _found = True
+                    break
 
             if not _found:
                 raise FileNotFoundError(
-                    "Cannot find Pulumi implementation for {}".format(
+                    "Cannot find Pulumi implementation for {} in configured libraries".format(
                         self.stackname))
 
             # Store internal pulumi code reference
@@ -199,7 +212,7 @@ def pulumi_ws(func):
 
             self.pulumi_ws_opts = pulumi.automation.LocalWorkspaceOptions(
                 env_vars={"PULUMI_PYTHON_CMD": f"{os.environ['HOME']}/.venv/bin/python",
-                          "PYTHONPATH": os.pathsep.join(pulumi_paths + ([existing] if existing else [])),
+                          "PYTHONPATH": os.pathsep.join(search_paths + ([existing] if existing else [])),
                           },
                 work_dir=self.work_dir,
                 project_settings=project_settings,
@@ -225,6 +238,13 @@ def pulumi_ws(func):
             # Cleanup temp workspace
             if self.work_dir and os.path.exists(self.work_dir):
                 shutil.rmtree(self.work_dir)
+
+            # Remove any search paths we added; they point into work_dir
+            for _path in appended:
+                try:
+                    sys.path.remove(_path)
+                except ValueError:
+                    pass
 
         return response
 

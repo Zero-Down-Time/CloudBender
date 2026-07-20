@@ -94,6 +94,7 @@ class Stack(object):
         self.pulumi_stackname = ""
         self.pulumi_config = {}
         self.pulumi_ws_opts = None
+        self.libraries = []
 
     def dump_config(self):
         logger.debug(
@@ -111,7 +112,7 @@ class Stack(object):
         self.pulumi.update(sg_config.get("pulumi", {}))
 
         # by default inherit parent group settings
-        for p in ["region", "notfication_sns", "template_bucket_url"]:
+        for p in ["region", "notfication_sns", "template_bucket_url", "libraries"]:
             if p in sg_config:
                 setattr(self, p, sg_config[p])
 
@@ -140,6 +141,7 @@ class Stack(object):
             "onfailure",
             "notification_sns",
             "template_bucket_url",
+            "libraries",
         ]:
             if p in _config:
                 setattr(self, p, _config[p])
@@ -170,6 +172,23 @@ class Stack(object):
             raise ParameterIllegalValue(
                 "onfailure must be one of DO_NOTHING | ROLLBACK | DELETE"
             )
+
+        # Pulumi libraries: list of { url, version } entries
+        if not isinstance(self.libraries, list):
+            raise ParameterIllegalValue(
+                "libraries must be a list of {{ url, version }} entries"
+            )
+        for lib in self.libraries:
+            if not isinstance(lib, dict) or "url" not in lib or "version" not in lib:
+                raise ParameterIllegalValue(
+                    "Each libraries entry requires an 'url' and 'version'"
+                )
+            if not isinstance(lib["url"], str) or "://" not in lib["url"]:
+                raise ParameterIllegalValue(
+                    "libraries url must be scheme-qualified, e.g. s3://bucket/path/name"
+                )
+            if not isinstance(lib["version"], str):
+                raise ParameterIllegalValue("libraries version must be a string")
 
         self.id = (self.profile, self.region, self.stackname)
         self.connection_manager = BotoConnection(self.profile, self.region)
@@ -957,16 +976,16 @@ class Stack(object):
         kwargs = self._set_pulumi_args()
         ret = self._get_pulumi_stack(create=True).preview(**kwargs)
 
-    #   for e in self.events:
-    #       if e.resource_pre_event:
-    #           md = e.resource_pre_event.metadata
-    #           print(md.op, md.urn, md.diffs)   # 'create'/'update'/'delete', changed props
-    #       if e.diagnostic_event and e.diagnostic_event.severity == "error":
-    #           print("ERR:", e.diagnostic_event.message)
-    #       if e.summary_event:
-    #           print(e.summary_event.resource_changes)
+        from rich.table import Table
+        from rich.console import Console
 
-    #   print(ret.change_summary)
+        table = Table("Op", "Type", "Name")
+        for e in self.events:
+            if e.resource_pre_event:
+                md = e.resource_pre_event.metadata
+                if md.op != "same":
+                    table.add_row(md.op, md.type, md.urn.split("::")[-1])
+        Console().print(table)
 
         return ret
 
