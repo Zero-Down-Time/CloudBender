@@ -54,7 +54,8 @@ def test_fetch_s3_unpacks_and_interpolates_version(tmp_path):
 
 def test_fetch_latest_version_literal(tmp_path):
     conn = FakeConn(_make_targz({"pulumi/net.py": "x = 1\n"}))
-    fetch_library(conn, None, "global", "s3://b/libs/net", "latest", str(tmp_path))
+    fetch_library(conn, None, "global", "s3://b/libs/net",
+                  "latest", str(tmp_path))
     assert conn.calls[0][2]["Key"] == "libs/net-latest.tar.gz"
 
 

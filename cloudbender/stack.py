@@ -191,9 +191,11 @@ class Stack(object):
                     "libraries url must be scheme-qualified, e.g. s3://bucket/path/name"
                 )
             if "version" in lib and not isinstance(lib["version"], str):
-                raise ParameterIllegalValue("libraries version must be a string")
+                raise ParameterIllegalValue(
+                    "libraries version must be a string")
             if "optional" in lib and not isinstance(lib["optional"], bool):
-                raise ParameterIllegalValue("libraries optional must be a boolean")
+                raise ParameterIllegalValue(
+                    "libraries optional must be a boolean")
 
         self.id = (self.profile, self.region, self.stackname)
         self.connection_manager = BotoConnection(self.profile, self.region)
