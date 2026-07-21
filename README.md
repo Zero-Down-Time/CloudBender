@@ -132,7 +132,7 @@ Each entry supports:
 
 For remote protocols the archive `<url>-<version>.tar.gz` is fetched and unpacked into a temporary workspace. `local://` points directly at an existing directory (relative paths resolve against the CloudBender project root, i.e. `--dir`) and is neither fetched nor copied — useful for local development.
 
-Each library root must contain a top-level `pulumi/` directory and may contain a sibling `artifacts/` directory; the stack's `template` (e.g. `vpc.py`) is imported from the **first** library that provides it. Every library's `pulumi/` and `artifacts/` folders are added to the Pulumi program's search path so it can import modules and locate bundled files/scripts.
+Each library root must contain a top-level `pulumi/` directory and may contain sibling `artifacts/` and `policies/` directories; the stack's `template` (e.g. `vpc.py`) is imported from the **first** library that provides it. Every library's `pulumi/` and `artifacts/` folders are added to the Pulumi program's search path so it can import modules and locate bundled files/scripts. Pulumi policy packs referenced via `pulumi.policies` are resolved against each library's `policies/` folder.
 
 ## CLI Reference
 

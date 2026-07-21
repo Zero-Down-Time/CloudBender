@@ -70,6 +70,7 @@ def pulumi_ws(func):
             # artifacts/ folder so the Pulumi code can locate files/scripts.
             pulumi_paths = []
             search_paths = []
+            self.policy_paths = []
             for lib in self.libraries:
                 try:
                     lib_root = fetch_library(
@@ -94,6 +95,11 @@ def pulumi_ws(func):
                             if _path not in sys.path:
                                 sys.path.append(_path)
                                 appended.append(_path)
+
+                    # policies/ holds this library's Pulumi policy packs
+                    policies_dir = lib_root / "policies"
+                    if policies_dir.is_dir():
+                        self.policy_paths.append(str(policies_dir))
 
                 # optional libs may be absent or unreachable; skip on any
                 # failure to fetch/resolve them, otherwise surface the error

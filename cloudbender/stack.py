@@ -98,6 +98,7 @@ class Stack(object):
         self.pulumi_config = {}
         self.pulumi_ws_opts = None
         self.libraries = []
+        self.policy_paths = []
 
     def dump_config(self):
         logger.debug(
@@ -1417,14 +1418,12 @@ class Stack(object):
         kwargs["policy_packs"] = []
         kwargs["policy_pack_configs"] = []
 
-        # Try to find policies in each artifact location
+        # Find each policy pack in the policies/ folder of a fetched library
         if "policies" in self.pulumi:
             for policy in self.pulumi["policies"]:
                 found = False
-                for artifacts_path in self.ctx["artifact_paths"]:
-                    path = "{}/pulumi/policies/{}".format(
-                        artifacts_path.resolve(), policy
-                    )
+                for policy_path in self.policy_paths:
+                    path = os.path.join(policy_path, policy)
                     if os.path.exists(path):
                         kwargs["policy_packs"].append(path)
                         found = True
