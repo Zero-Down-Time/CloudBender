@@ -110,7 +110,7 @@ Each stack operates in one of three modes:
 
 ### Pulumi Libraries
 
-Pulumi stack implementations are distributed as versioned library archives rather than kept in the local project tree. Declare them per stack (or inherit from the stack group) via the top-level `libraries` key:
+Stack implementations — both Pulumi programs and CloudFormation Jinja templates — are distributed as versioned library archives rather than kept in the local project tree. Declare them per stack (or inherit from the stack group) via the top-level `libraries` key:
 
 ```yaml
 libraries:
@@ -132,7 +132,14 @@ Each entry supports:
 
 For remote protocols the archive `<url>-<version>.tar.gz` is fetched and unpacked into a temporary workspace. `local://` points directly at an existing directory (relative paths resolve against the CloudBender project root, i.e. `--dir`) and is neither fetched nor copied — useful for local development.
 
-Each library root must contain a top-level `pulumi/` directory and may contain sibling `artifacts/` and `policies/` directories; the stack's `template` (e.g. `vpc.py`) is imported from the **first** library that provides it. Every library's `pulumi/` and `artifacts/` folders are added to the Pulumi program's search path so it can import modules and locate bundled files/scripts. Pulumi policy packs referenced via `pulumi.policies` are resolved against each library's `policies/` folder.
+A library root may contain any of these top-level folders, and the stack's `template` is resolved from the **first** library that provides it:
+
+- **`pulumi/`** — Pulumi Python programs. The stack's `template` (e.g. `vpc.py`) is imported from here. `pulumi/` and `artifacts/` folders are added to the Pulumi program's search path so it can import modules and locate bundled files/scripts.
+- **`cloudformation/`** — CloudFormation Jinja templates. The stack's `template` (e.g. `vpc.yaml.jinja`) is rendered from here; `cloudformation/` and `artifacts/` folders form the Jinja loader path, so `{% include %}` and `include_raw` of scripts resolve against both.
+- **`artifacts/`** — bundled files and scripts shared by the above.
+- **`policies/`** — Pulumi policy packs referenced via `pulumi.policies`.
+
+Both backends source their templates exclusively from libraries; a stack must declare at least one library providing its `template`. A `local://.` library exposing `pulumi/` / `cloudformation/` folders is the simplest way to keep templates alongside the project during development.
 
 ## CLI Reference
 

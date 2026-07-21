@@ -22,7 +22,6 @@ class CloudBender(object):
             "hooks_path": self.root.joinpath("hooks"),
             "docs_path": self.root.joinpath("docs"),
             "outputs_path": self.root.joinpath("outputs"),
-            "artifact_paths": [self.root.joinpath("artifacts")],
             "profile": profile,
             "region": region,
         }
@@ -63,7 +62,6 @@ class CloudBender(object):
                 "template_path",
                 "hooks_path",
                 "docs_path",
-                "artifact_paths",
                 "outputs_path",
             ]:
                 if isinstance(v, list):

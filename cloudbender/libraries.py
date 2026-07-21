@@ -54,7 +54,7 @@ def _local_path(url, root=None):
             "Local library path does not exist: {} ({})".format(lib_root, url)
         )
 
-    logger.info("Using local library {}".format(lib_root))
+    logger.debug("Using local library {}".format(lib_root))
     return lib_root
 
 
@@ -79,7 +79,7 @@ def _fetch_s3(conn, profile, region, archive_url, dest_dir):
     lib_root = pathlib.Path(dest_dir) / name
     _extract(body, lib_root, archive_url)
 
-    logger.info("Fetched library {} to {}".format(archive_url, lib_root))
+    logger.debug("Fetched library {} to {}".format(archive_url, lib_root))
     return lib_root
 
 
@@ -87,8 +87,7 @@ def _extract(body, lib_root, archive_url):
     lib_root.mkdir(parents=True, exist_ok=True)
     try:
         with tarfile.open(fileobj=io.BytesIO(body), mode="r:gz") as tar:
-            # filter="data" rejects absolute paths and traversal (Python 3.12+)
-            tar.extractall(path=lib_root, filter="data")
+            tar.extractall(path=lib_root, filter="tar")
     except Exception as e:
         raise ValueError(
             "Could not unpack library {}: {}".format(archive_url, e)

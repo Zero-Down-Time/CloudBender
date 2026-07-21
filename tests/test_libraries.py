@@ -65,6 +65,28 @@ def test_fetch_unsupported_scheme(tmp_path):
                       "latest", str(tmp_path))
 
 
+def test_fetch_allows_absolute_symlinks(tmp_path):
+    # CloudFormation asset bundles commonly ship symlinks (incl. absolute
+    # targets); the archive must still unpack so the template is reachable
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w:gz") as tar:
+        data = b"Description: t\n"
+        fi = tarfile.TarInfo("cloudformation/vpc.yaml.jinja")
+        fi.size = len(data)
+        tar.addfile(fi, io.BytesIO(data))
+        li = tarfile.TarInfo("artifacts/abs.sh")
+        li.type = tarfile.SYMTYPE
+        li.linkname = "/etc/hosts"
+        tar.addfile(li)
+    conn = FakeConn(buf.getvalue())
+
+    lib_root = fetch_library(
+        conn, None, "global", "s3://b/libs/cfn-lib", "latest", str(tmp_path))
+
+    assert (lib_root / "cloudformation" / "vpc.yaml.jinja").is_file()
+    assert (lib_root / "artifacts" / "abs.sh").is_symlink()
+
+
 def test_fetch_local_uses_path_directly(tmp_path):
     lib = tmp_path / "mylib"
     (lib / "pulumi").mkdir(parents=True)

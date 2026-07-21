@@ -4,8 +4,11 @@ import hashlib
 import json
 import yaml
 import time
+import shutil
+import tempfile
 import pathlib
 import pprint
+import jinja2
 import pulumi
 import importlib
 
@@ -29,6 +32,7 @@ from .jinja import JinjaEnv, read_config_file, render_docs
 from . import __version__
 from .exceptions import ParameterNotFound, ParameterIllegalValue, ChecksumError
 from .hooks import exec_hooks
+from .libraries import fetch_library
 from .pulumi import pulumi_ws, resolve_outputs
 
 import cfnlint.core
@@ -99,6 +103,7 @@ class Stack(object):
         self.pulumi_ws_opts = None
         self.libraries = []
         self.policy_paths = []
+        self.loaded_libraries = []
 
     def dump_config(self):
         logger.debug(
@@ -203,6 +208,66 @@ class Stack(object):
 
         logger.debug("Stack {} added.".format(self.id))
 
+    def _fetch_libraries(self):
+        """Fetch all configured libraries into a fresh work_dir.
+
+        Returns a dict of path buckets (pulumi, cloudformation, artifacts,
+        policies), each listing the matching sub-folders across libraries in
+        config order. The caller owns the work_dir lifecycle (cleanup).
+        """
+        self.work_dir = tempfile.mkdtemp(
+            dir=tempfile.gettempdir(), prefix="cloudbender-"
+        )
+
+        paths = {
+            "pulumi": [],
+            "cloudformation": [],
+            "artifacts": [],
+            "policies": [],
+        }
+        self.loaded_libraries = []
+
+        for lib in self.libraries:
+            version = lib.get("version", "latest")
+
+            try:
+                lib_root = fetch_library(
+                    self.connection_manager,
+                    self.profile,
+                    self.region,
+                    lib["url"],
+                    version,
+                    self.work_dir,
+                    root=self.ctx["root"],
+                )
+
+            # optional libs may be absent or unreachable; skip on any failure
+            # to fetch/resolve them, otherwise surface the error
+            except Exception as e:
+                if lib.get("optional"):
+                    logger.warning(
+                        "Skipping optional library {}: {}".format(lib["url"], e))
+                    continue
+                raise
+
+            for sub in paths:
+                _dir = lib_root / sub
+                if _dir.is_dir():
+                    paths[sub].append(str(_dir))
+
+            # local:// resolves in place and ignores version; remote refs
+            # record the effective version actually fetched
+            if lib["url"].startswith("local://"):
+                ref = lib["url"]
+            else:
+                ref = "{}@{}".format(lib["url"], version)
+            self.loaded_libraries.append(ref)
+            logger.info("Loaded library {}".format(ref))
+
+        self.policy_paths = paths["policies"]
+
+        return paths
+
     def render(self):
         """Renders the cfn jinja template for this stack"""
 
@@ -217,30 +282,44 @@ class Stack(object):
             "metadata": template_metadata,
         }
 
-        jenv = JinjaEnv(self.ctx["artifact_paths"])
-        jenv.globals["_config"] = _config
-
-        template = jenv.get_template(
-            "{0}{1}".format(
-                self.template,
-                ".yaml.jinja"))
-
-        logger.info("Rendering %s", template.filename)
-
         try:
-            self.cfn_template = template.render(_config)
-            self.cfn_data = yaml.load(
-                self.cfn_template,
-                Loader=SafeLoaderIgnoreUnknown)
-        except Exception as e:
-            # In case we rendered invalid yaml this helps to debug
-            if self.cfn_template:
-                _output = ""
-                for i, line in enumerate(
-                        self.cfn_template.splitlines(), start=1):
-                    _output = _output + "{}: {}\n".format(i, line)
-                logger.error(_output)
-            raise e
+            # CloudFormation jinja templates and their included assets come
+            # from each library's cloudformation/ and artifacts/ folders
+            paths = self._fetch_libraries()
+            jenv = JinjaEnv(paths["cloudformation"] + paths["artifacts"])
+            jenv.globals["_config"] = _config
+
+            try:
+                template = jenv.get_template(
+                    "{0}{1}".format(
+                        self.template,
+                        ".yaml.jinja"))
+            except jinja2.TemplateNotFound:
+                raise FileNotFoundError(
+                    "Cannot find CloudFormation template for {} in configured libraries (loaded: {})".format(
+                        self.stackname,
+                        ", ".join(self.loaded_libraries) or "none")) from None
+
+            logger.info("Rendering %s", template.filename)
+
+            try:
+                self.cfn_template = template.render(_config)
+                self.cfn_data = yaml.load(
+                    self.cfn_template,
+                    Loader=SafeLoaderIgnoreUnknown)
+            except Exception as e:
+                # In case we rendered invalid yaml this helps to debug
+                if self.cfn_template:
+                    _output = ""
+                    for i, line in enumerate(
+                            self.cfn_template.splitlines(), start=1):
+                        _output = _output + "{}: {}\n".format(i, line)
+                    logger.error(_output)
+                raise e
+
+        finally:
+            if self.work_dir and os.path.exists(self.work_dir):
+                shutil.rmtree(self.work_dir)
 
         if not re.search("CloudBender::", self.cfn_template) and not re.search(
             "Iterate:", self.cfn_template

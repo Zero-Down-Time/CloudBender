@@ -2,7 +2,6 @@ import sys
 import os
 import re
 import shutil
-import tempfile
 import importlib
 import importlib.util
 import click
@@ -15,7 +14,6 @@ from functools import wraps
 import logging
 
 from . import __version__
-from .libraries import fetch_library
 
 logger = logging.getLogger(__name__)
 
@@ -60,55 +58,22 @@ def pulumi_ws(func):
 
         # setup temp workspace
         if self.mode == "pulumi":
-            self.work_dir = tempfile.mkdtemp(
-                dir=tempfile.gettempdir(), prefix="cloudbender-"
-            )
+            # Fetch configured libraries (creates self.work_dir). pulumi_paths
+            # holds the pulumi/ folders used for template discovery;
+            # search_paths additionally exposes each library's artifacts/
+            # folder so the Pulumi code can locate files/scripts.
+            paths = self._fetch_libraries()
+            pulumi_paths = paths["pulumi"]
+            search_paths = paths["pulumi"] + paths["artifacts"]
 
-            # Fetch configured libraries and collect their search paths.
-            # pulumi_paths holds the pulumi/ folders used for template
-            # discovery; search_paths additionally exposes each library's
-            # artifacts/ folder so the Pulumi code can locate files/scripts.
-            pulumi_paths = []
-            search_paths = []
-            self.policy_paths = []
-            for lib in self.libraries:
-                try:
-                    lib_root = fetch_library(
-                        self.connection_manager,
-                        self.profile,
-                        self.region,
-                        lib["url"],
-                        lib.get("version", "latest"),
-                        self.work_dir,
-                        root=self.ctx["root"],
-                    )
-
-                    pulumi_dir = lib_root / "pulumi"
-                    if pulumi_dir.is_dir():
-                        pulumi_paths.append(str(pulumi_dir))
-
-                    for sub in ("pulumi", "artifacts"):
-                        _dir = lib_root / sub
-                        if _dir.is_dir():
-                            _path = str(_dir)
-                            search_paths.append(_path)
-                            if _path not in sys.path:
-                                sys.path.append(_path)
-                                appended.append(_path)
-
-                    # policies/ holds this library's Pulumi policy packs
-                    policies_dir = lib_root / "policies"
-                    if policies_dir.is_dir():
-                        self.policy_paths.append(str(policies_dir))
-
-                # optional libs may be absent or unreachable; skip on any
-                # failure to fetch/resolve them, otherwise surface the error
-                except Exception as e:
-                    if lib.get("optional"):
-                        logger.warning(
-                            "Skipping optional library {}: {}".format(lib["url"], e))
-                        continue
-                    raise
+            # Expose pulumi/ and artifacts/ for in-process imports; tracked in
+            # appended so they can be removed again on cleanup (they point
+            # into work_dir). Never done for CloudFormation, which runs in
+            # parallel threads and must not mutate the global sys.path.
+            for _path in search_paths:
+                if _path not in sys.path:
+                    sys.path.append(_path)
+                    appended.append(_path)
 
             # Import self.template from the first library providing it
             _found = False
@@ -124,8 +89,9 @@ def pulumi_ws(func):
 
             if not _found:
                 raise FileNotFoundError(
-                    "Cannot find Pulumi implementation for {} in configured libraries".format(
-                        self.stackname))
+                    "Cannot find Pulumi implementation for {} in configured libraries (loaded: {})".format(
+                        self.stackname,
+                        ", ".join(self.loaded_libraries) or "none"))
 
             # Store internal pulumi code reference
             self._pulumi_code = _stack
