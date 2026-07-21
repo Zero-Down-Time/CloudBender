@@ -155,4 +155,5 @@ def test_render_missing_template_lists_loaded_libraries(tmp_path):
     assert "local://{}".format(lib1) in msg
     assert stack.stackname in msg
     # work_dir is cleaned up even on the failure path
-    assert not stack.work_dir or not __import__("os").path.exists(stack.work_dir)
+    assert not stack.work_dir or not __import__(
+        "os").path.exists(stack.work_dir)
