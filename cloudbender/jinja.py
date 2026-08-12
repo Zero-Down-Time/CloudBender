@@ -252,7 +252,11 @@ def _sops_loader(path):
     """
     with open(path, "r") as f:
         config_raw = f.read()
-        data = yaml.safe_load(config_raw)
+
+        try:
+            data = yaml.safe_load(config_raw)
+        except:
+            return config_raw
 
         if data and "sops" in data and "DISABLE_SOPS" not in os.environ:
             try:
