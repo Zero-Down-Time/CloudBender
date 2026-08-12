@@ -255,7 +255,7 @@ def _sops_loader(path):
 
         try:
             data = yaml.safe_load(config_raw)
-        except:
+        except yaml.constructor.ConstructorError:
             return config_raw
 
         if data and "sops" in data and "DISABLE_SOPS" not in os.environ:
