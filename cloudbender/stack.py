@@ -1198,14 +1198,6 @@ class Stack(object):
         with open(self.path, "r") as file:
             settings = ryaml.load(file)
 
-            if "pulumi" not in settings:
-                settings["pulumi"] = {}
-
-            if "encryptionsalt" in pulumi_settings:
-                settings["pulumi"]["encryptionsalt"] = pulumi_settings["encryptionsalt"]
-            if "encryptedkey" in pulumi_settings:
-                settings["pulumi"]["encryptedkey"] = pulumi_settings["encryptedkey"]
-
             if "parameters" not in settings:
                 settings["parameters"] = {}
 

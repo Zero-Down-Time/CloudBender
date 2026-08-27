@@ -23,6 +23,7 @@ dependencies = [
         "cfn-lint",
         "ruamel.yaml",
         "rich",
+        "cryptography",
         "pulumi",
         "pulumi-aws>=7,<8",
         "pulumi-aws-native",

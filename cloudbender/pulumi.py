@@ -8,6 +8,12 @@ import click
 import pulumi
 import subprocess
 import semver
+import base64
+import urllib
+
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.hazmat.primitives.hashes import SHA256
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from functools import wraps
 
@@ -19,6 +25,17 @@ logger = logging.getLogger(__name__)
 
 # Disable Pulumis version check globally
 os.environ["PULUMI_SKIP_UPDATE_CHECK"] = "true"
+
+
+def make_encryptionsalt(passphrase: str) -> str:
+    # 64-bit passphrase salt
+    salt = os.urandom(8)
+    key = PBKDF2HMAC(SHA256(), 32, salt, 1_000_000).derive(passphrase.encode())
+    nonce = os.urandom(12)                                 # 96-bit GCM nonce
+    # ciphertext || 16-byte tag
+    ct = AESGCM(key).encrypt(nonce, b"pulumi", None)
+    b = base64.b64encode
+    return f"v1:{b(salt).decode()}:v1:{b(nonce).decode()}:{b(ct).decode()}"
 
 
 def get_pulumi_version():
@@ -123,15 +140,53 @@ def pulumi_ws(func):
             self.connection_manager.exportProfileEnv()
 
             # Secrets provider
-            secrets_provider = None
-            if "secretsProvider" in self.pulumi:
+            try:
                 secrets_provider = self.pulumi["secretsProvider"]
-                if (
-                    secrets_provider == "passphrase"
-                    and "PULUMI_CONFIG_PASSPHRASE" not in os.environ
-                ):
+            except KeyError:
+                raise ValueError(
+                    "Missing `pulumi.secretsProvider` setting!"
+                )
+
+            # check for salt and create new on if missing to be added to config
+            if secrets_provider == "passphrase":
+                if "PULUMI_CONFIG_PASSPHRASE" not in os.environ:
                     raise ValueError(
                         "Missing PULUMI_CONFIG_PASSPHRASE environment variable!"
+                    )
+                if "encryptionsalt" not in self.pulumi:
+                    self.pulumi["encryptionsalt"] = make_encryptionsalt(
+                        os.environ["PULUMI_CONFIG_PASSPHRASE"])
+                    print(
+                        f"Add `pulumi.encryptionsalt: {self.pulumi["encryptionsalt"]}`")
+                    raise ValueError(
+                        "Missing `pulumi.encryptionsalt` for passphrase provider!"
+                    )
+
+            # ensure wrapped data key is available, currently only support awskms
+            else:
+                if "encryptedkey" not in self.pulumi:
+                    key = secrets_provider[len(
+                        "awskms://"):].split("?", 1)[0].lstrip("/")
+                    region = urllib.parse.parse_qs(urllib.parse.urlsplit(
+                        secrets_provider).query).get("region", [None])[0]
+                    if region is None and key.startswith("arn:aws:kms:"):
+                        region = key.split(":")[3]
+
+                    # 256-bit AES data key
+                    data_key = os.urandom(32)
+                    resp = self.connection_manager.call(
+                        "kms",
+                        "encrypt",
+                        {"KeyId": key, "Plaintext": data_key},
+                        profile=self.profile,
+                        region=region
+                    )
+                    self.pulumi["encryptedkey"] = base64.b64encode(
+                        resp["CiphertextBlob"]).decode()
+                    print(
+                        f"Add `pulumi.encryptedkey: {self.pulumi["encryptedkey"]}`")
+                    raise ValueError(
+                        "Missing `pulumi.encryptedkey`!"
                     )
 
             # Set tag for stack file name and version
