@@ -1,7 +1,7 @@
 FROM alpine:3.24.1
 
 # renovate: datasource=alpine-overlay depName=pulumi
-ARG PULUMI=3.253.0
+ARG PULUMI=3.259.0-r0
 ARG USER=cloudbender
 
 # trades about 300MB container size for 5s more startup latency
