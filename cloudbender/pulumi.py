@@ -263,12 +263,28 @@ def pulumi_ws(func):
         try:
             response = func(self, *args, **kwargs)
 
-        except pulumi.automation.errors.CommandError:
-            # Streamed operations already surface Pulumi's diagnostics via
-            # on_output (_log_pulumi); drop the exception's duplicate stderr dump.
+        except pulumi.automation.errors.CommandError as e:
             if func.__name__ in ("create", "preview", "refresh", "delete"):
-                logger.error(
-                    "Pulumi {} failed for {}".format(func.__name__, self.stackname))
+                # Streamed operations surface Pulumi's diagnostics via on_output
+                # (_log_pulumi), but errors that occur before streaming begins
+                # (e.g. secret decryption failures during stack selection) are
+                # NOT captured by on_output. CommandError embeds the stderr in
+                # its string form, not as a .stderr attribute.
+                msg = str(e).strip()
+                stderr_line = ""
+                for line in reversed(msg.splitlines()):
+                    line = line.strip()
+                    if line.startswith("stderr:"):
+                        stderr_line = line[len("stderr:"):].strip()
+                        break
+                if stderr_line:
+                    logger.error(
+                        "Pulumi {} failed for {}: {}".format(
+                            func.__name__, self.stackname, stderr_line))
+                else:
+                    logger.error(
+                        "Pulumi {} failed for {}".format(
+                            func.__name__, self.stackname))
                 raise click.Abort() from None
             raise
 
