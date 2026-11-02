@@ -159,6 +159,10 @@ class Stack(object):
             if p in _config:
                 setattr(self, p, dict_merge(getattr(self, p), _config[p]))
 
+        # provides must follow the overridden template, not the constructor default (file name)
+        if "provides" not in _config:
+            self.provides = self.template
+
         # Inject Artifact if not explicitly set
         if "Artifact" not in self.tags:
             self.tags["Artifact"] = self.provides
