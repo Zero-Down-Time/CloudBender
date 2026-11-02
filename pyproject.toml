@@ -30,6 +30,7 @@ dependencies = [
         "pulumi-policy",
         "pulumi-command",
         "pulumi_random",
+        "pulumi_tls",
         ]
 
 classifiers = [
