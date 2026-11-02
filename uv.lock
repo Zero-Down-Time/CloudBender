@@ -184,6 +184,7 @@ dependencies = [
     { name = "pulumi-command" },
     { name = "pulumi-policy" },
     { name = "pulumi-random" },
+    { name = "pulumi-tls" },
     { name = "pydantic" },
     { name = "python-minifier" },
     { name = "rich" },
@@ -214,6 +215,7 @@ requires-dist = [
     { name = "pulumi-command" },
     { name = "pulumi-policy" },
     { name = "pulumi-random" },
+    { name = "pulumi-tls" },
     { name = "pydantic" },
     { name = "pytest", marker = "extra == 'dev'" },
     { name = "python-minifier" },
@@ -902,6 +904,20 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/af/b5/c97973fe86e95da07fbd601adc41508da870af7f33a639db69b945c40eb0/pulumi_random-4.21.4.tar.gz", hash = "sha256:77c9a4e3170cc623e6dc0f1838eb99f2afa6ff34a0af85ee8f0f1bd3e71ba3d7", size = 22826, upload-time = "2026-10-16T11:31:18.434Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b8/a1/cca989317c4c1826a10ae9e7d55301d34e0bc67dc8d7e41b0fe72f62ee41/pulumi_random-4.21.4-py3-none-any.whl", hash = "sha256:bd1bc42c489a49ec0ac09910f86f030858d7e88f31d0ff81ae4425a6c65cef4e", size = 36100, upload-time = "2026-10-16T11:31:17.039Z" },
+]
+
+[[package]]
+name = "pulumi-tls"
+version = "5.6.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "packaging" },
+    { name = "pulumi" },
+    { name = "semver" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/07/79/09f3af1d53aea0df2d5a97fc159c09752e60b80d70ffc1603a32d47af373/pulumi_tls-5.6.3.tar.gz", hash = "sha256:b5337917ff27496366baaf26fff7c2e224d2e67a32da0b0062b4826cb69f003d", size = 33205, upload-time = "2026-11-02T12:15:59.246Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/6f/4e/e8851ef673a1c2ed8b86e57eebf2a22c824a6d85821e1a95f6f236ee8588/pulumi_tls-5.6.3-py3-none-any.whl", hash = "sha256:b0fd8c89e5839a6e98af251ac03bb457336954634b0256f52ff0429cfeb77e26", size = 40674, upload-time = "2026-11-02T12:15:58.332Z" },
 ]
 
 [[package]]
